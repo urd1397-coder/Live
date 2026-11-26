@@ -175,29 +175,58 @@ function analyze(text, tone) {
   return { emotion: best, scores: sc };
 }
 
-/* يحول النص الكامل إلى مقاطع {text, emotion, forced} جاهزة للأداء */
+/* تنظيف النص المنطوق: نحذف عناوين المشاهد وملاحظات الأداء، ونبقي القصة فقط */
+function cleanNarrationLine(value) {
+  let line = value.trim();
+  if (!line) return '';
+  // عناوين مستقلة لا ينبغي أن تتحول إلى كلام مسموع.
+  if (/^(?:#{1,6}\\s*)?(?:🎬\\s*)?(?:عنوان(?:\\s+الحلقة)?|افتتاحية|البداية|المشهد(?:\\s+(?:الأول|الثاني|الثالث|الرابع|الخامس|الأخير|\\d+))?|تصعيد|الذروة|خاتمة|النهاية|مقدمة|تمهيد)\\s*(?::|：|—|–|-).*$/u.test(line)) return '';
+  if (/^(?:#{1,6}\\s*)?(?:🎬\\s*)?(?:افتتاحية|البداية|المشهد(?:\\s+(?:الأول|الثاني|الثالث|الرابع|الخامس|الأخير|\\d+))?|تصعيد|الذروة|خاتمة|النهاية|مقدمة|تمهيد)\\s*$/u.test(line)) return '';
+  // احذف أي ملاحظة بين الأقواس، مع التقاط الانفعال إن كانت توجيهاً معروفاً.
+  line = line.replace(/\\[([^\\]]*)\\]|\\(([^)]*)\\)|\\*([^*]*)\\*/g, (m, a, b, c) => {
+    const note = a ?? b ?? c ?? '';
+    const emo = directive(note);
+    if (emo) line = line; // تُقرأ قيمة التوجيه في parseScript أدناه.
+    return ' ';
+  });
+  line = line.replace(/^\\s*(?:عنوان(?:\\s+الحلقة)?|المشهد(?:\\s+\\S+)?|افتتاحية|تصعيد|الذروة|خاتمة)\\s*[:：—–-]\\s*/u, '');
+  return line.replace(/^#+\\s*/, '').replace(/\\s+/g, ' ').trim();
+}
+
+/* يحول النص الكامل إلى مقاطع صوتية: العناوين وتعليمات الأداء لا تدخل إلى TTS */
 function parseScript(raw, tone) {
-  const out = []; let carry = null;
-  for (const row of raw.split(/\n+/)) {
-    let line = row.trim(); if (!line) continue;
-    let forced = carry; carry = null;
-    line = line.replace(/\[([^\]]*)\]|\(([^)]*)\)|\*([^*]*)\*/g, (m, a, b, c) => {
+  const out = [];
+  for (const row of raw.split(/\\n+/)) {
+    const original = row.trim();
+    if (!original) continue;
+    // احصل على الانفعال من أي ملاحظة توجيهية قبل حذفها.
+    let forced = null;
+    original.replace(/\\[([^\\]]*)\\]|\\(([^)]*)\\)|\\*([^*]*)\\*/g, (m, a, b, c) => {
       const emo = directive(a ?? b ?? c ?? '');
-      if (emo) { forced = emo; return ' '; }
-      return a !== undefined ? ' ' : m;                      // [أي عنوان مشهد] ما ينقرأ
+      if (emo) forced = emo;
+      return m;
     });
-    line = line.replace(/\p{Extended_Pictographic}️?/gu, '').replace(/ه{3,}/g, 'ها ها ها').replace(/\s+/g, ' ').trim();
-    if (!line || !/[\p{L}\p{N}]/u.test(line)) { if (forced) carry = forced; continue; }
+    let line = original;
+    // العناوين الواضحة تُحذف بالكامل حتى لو احتوت نصاً بعدها.
+    if (/^(?:#{1,6}\\s*)?(?:🎬\\s*)?(?:عنوان(?:\\s+الحلقة)?|افتتاحية|البداية|المشهد(?:\\s+(?:الأول|الثاني|الثالث|الرابع|الخامس|الأخير|\\d+))?|تصعيد|الذروة|خاتمة|النهاية|مقدمة|تمهيد)\\s*(?::|：|—|–|-).*$/u.test(line)) continue;
+    line = line.replace(/\\[([^\\]]*)\\]|\\(([^)]*)\\)|\\*([^*]*)\\*/g, ' ');
+    line = line.replace(/^\\s*#+\\s*/, '');
+    line = line.replace(/^\\s*(?:افتتاحية|البداية|المشهد(?:\\s+\\S+)?|تصعيد|الذروة|خاتمة|النهاية|مقدمة|تمهيد)\\s*[:：—–-]\\s*/u, '');
+    line = line.replace(/\\p{Extended_Pictographic}️?/gu, '').replace(/ه{3,}/g, 'ها ها ها').replace(/\\s+/g, ' ').trim();
+    if (!line || !/[\\p{L}\\p{N}]/u.test(line)) continue;
     const sentences = [];
-    for (const s of line.split(/(?<=[.!؟?…])\s+/)) {
-      if (s.length <= 140) { sentences.push(s); continue; }
-      let cur = '';                                          // جمل طويلة جداً: نقسمها عند الفاصلة
-      for (const part of s.split(/(?<=[،,])\s*/)) { if ((cur + part).length > 120 && cur) { sentences.push(cur); cur = part; } else cur += (cur ? ' ' : '') + part; }
+    for (const sentence of line.split(/(?<=[.!؟?…])\\s+/)) {
+      if (sentence.length <= 140) { sentences.push(sentence); continue; }
+      let cur = '';
+      for (const part of sentence.split(/(?<=[،,])\\s*/)) {
+        if ((cur + part).length > 120 && cur) { sentences.push(cur); cur = part; }
+        else cur += (cur ? ' ' : '') + part;
+      }
       if (cur) sentences.push(cur);
     }
-    sentences.forEach((s, i) => {
-      const emo = (i === 0 && forced) ? forced : analyze(s, tone).emotion;
-      out.push({ text: s, emotion: emo, forced: i === 0 && !!forced, pause: /…$/.test(s) ? 550 : 260 });
+    sentences.forEach((sentence, i) => {
+      const emotion = (i === 0 && forced) ? forced : analyze(sentence, tone).emotion;
+      out.push({ text: sentence, emotion, forced: i === 0 && !!forced, pause: /…$/.test(sentence) ? 550 : 260 });
     });
   }
   return out;
