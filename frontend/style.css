@@ -44,3 +44,5 @@
 @keyframes fxpulse{from{transform:scale(.88)}to{transform:scale(1.14)}}
 @keyframes fxshiver{from{transform:translateX(-2px)}to{transform:translateX(2px)}}
 @keyframes tearfall{0%{transform:translateY(0);opacity:1}100%{transform:translateY(46px);opacity:0}}
+
+.feedback{margin:12px 0;padding:12px;border:1px solid #454052;border-radius:12px;background:#211d2c}.feedback>div{display:flex;gap:8px;flex-wrap:wrap}.feedback small{display:block;color:#aaa;margin-top:8px}.feedback button{flex:1}.feedback button:disabled{opacity:.6;cursor:wait}
