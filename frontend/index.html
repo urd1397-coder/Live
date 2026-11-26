@@ -20,7 +20,7 @@
       <textarea id="topic" rows="3" placeholder="مثلاً: قصة أغرب عملية سرقة فاشلة…"></textarea>
       <label>نبرة الشخصية</label>
       <select id="tone"><option>ساخر وخفيف</option><option>حماسي</option><option>هادئ وقصصي</option><option>هجومي كوميدي</option></select>
-      <button id="funStory" class="primary">✨ Generate a Fun Story</button>
+      <button id="funStory" class="primary">✨ إنشاء قصة بالذكاء الاصطناعي</button>
       <button id="draft">✍️ بناء سيناريو من الموضوع</button>
       <label>الصوت العربي</label>
       <select id="voiceSelect"><option value="">تحميل الأصوات...</option></select>
@@ -34,7 +34,7 @@
         <div class="hint">الشخصية تفهم المعنى وتتفاعل تلقائياً. وتقدر تتحكم يدوياً بإضافة توجيه قبل أي جملة، مثل: <b>[يصرخ]</b> <b>[يضحك]</b> <b>[يفكر]</b> <b>[يتفاجأ]</b> <b>[يغضب]</b> <b>[يبكي]</b> <b>[يخاف]</b> <b>[يسخر]</b> <b>[يتحمس]</b>. التوجيهات ما تنقرأ بصوت عالي.</div>
         <label>خريطة التفاعل (اضغط على أي تفاعل لتجربته)</label>
         <div id="reactmap" class="reactmap"></div>
-        <div class="script-actions"><button id="copy">نسخ</button><button id="perform" class="primary">▶️ عرض السرد والحركات</button><button id="stop" class="stop">⏹ إيقاف</button></div>
+        <div id="feedbackBox" class="feedback" hidden><label>هل أعجبك أسلوب الراوي؟</label><div><button id="storyGood" type="button">👍 طبيعي ومناسب</button><button id="storyBad" type="button">👎 مصطنع / يحتاج تحسين</button></div><small id="feedbackStatus">تقييمك يساعد الأداة على تحسين النصوص القادمة على هذا الجهاز.</small></div><div class="script-actions"><button id="copy">نسخ</button><button id="perform" class="primary">▶️ عرض السرد والحركات</button><button id="stop" class="stop">⏹ إيقاف</button></div>
       </div>
 
       <div id="narration" class="narration" hidden><label>المقطع الحالي</label><div id="segment"></div><div id="progress"></div></div>
