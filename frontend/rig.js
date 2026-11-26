@@ -104,7 +104,7 @@ const Rig = (() => {
     scared:  O({ wide: 1, pr: .4, bY: -12, bR: -14, mw: 24, mcl: 66, mcr: 66, mu: 56, ml: 96, tongue: 1, aL1: 112, aL2: 62, aR1: 112, aR2: 62, hs: ['open', 'open'], motion: 'scared', fx: ['sweat', 'shiver'], amp: 6 }),
     sassy:   O({ lid: -3, lidA: 6, bY: -2, bYR: -9, bC: 12, mw: 22, mcl: 54, mcr: 40, mx: 6, hr: 10, aL1: 32, aL2: -105, aR1: 50, aR2: 75, hs: ['fist', 'open'], motion: 'sassy', fx: ['star'], amp: 14 }),
     excited: O({ wide: 1, pr: 1.1, bY: -8, bR: -4, bC: 12, mw: 38, mcl: 44, mcr: 44, mu: 48, ml: 90, teeth: 1, tongue: 1, aL1: 128, aL2: 30, aR1: 128, aR2: 30, hs: ['open', 'open'], motion: 'excited', fx: ['sparkle'], amp: 14 }),
-    serious: O({ lid: -2, lidA: 8, bY: 4, bR: 14, bC: 0, mw: 20, mcl: 58, mcr: 58, mu: 58, ml: 58, aL1: 25, aL2: 190, aR1: 25, aR2: 190, hs: ['open', 'open'], motion: 'serious', fx: [], amp: 0 }),
+    serious: O({ lid: -2, lidA: 8, bY: 4, bR: 14, bC: 0, mw: 20, mcl: 58, mcr: 58, mu: 58, ml: 58, aL1: 24, aL2: 48, aR1: 24, aR2: 48, wL: -5, wR: 5, hs: ['open', 'open'], motion: 'serious', fx: [], amp: 14 }),
     mocking: O({ happy: 1, bY: -4, bR: -6, bC: 8, mw: 36, mcl: 44, mcr: 50, mu: 46, ml: 86, teeth: 1, tongue: 1, hr: -10, aL1: 20, aL2: 0, aR1: 88, aR2: 22, hs: ['open', 'point'], motion: 'mocking', fx: ['haha'], amp: 12 })
   };
 
@@ -157,7 +157,7 @@ const Rig = (() => {
       case 'sassy':   o.lean = Math.sin(t * 1.8) * 2.5; break;
       case 'think':   o.hr = Math.sin(t * .9) * 2; break;
       case 'sad':     o.by = 8 + Math.sin(t * 1.1) * 2; break;
-      case 'serious': o.by = Math.sin(t * 1.2) * 1.5; o.hr = 0; break;
+      case 'serious': o.by = Math.sin(t * 1.2) * 1.5; o.hr = 0; o.lean = Math.sin(t * .65) * .5; break;
     }
     return o;
   }
