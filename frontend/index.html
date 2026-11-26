@@ -1,17 +1,10 @@
 <!doctype html>
-<html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Live Studio</title><link rel="stylesheet" href="/style.css?v=ai-story-20261126"></head>
+<html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Live Studio</title><link rel="stylesheet" href="/style.css?v=studio-text-editor-20261126"></head>
 <body><main class="studio">
 <header class="head"><div><h1>Live <span class="pill">STUDIO</span></h1><p>استوديو الشخصية العربية</p></div><span class="live"><i></i> LIVE</span></header>
 <nav class="app-tabs"><button class="app-tab active" data-panel="videoPanel">🎬 Video Making</button><button class="app-tab" data-panel="livePanel">🔴 Live</button></nav>
 
 <section class="workspace">
-  <!-- الشخصية خارج التبويبات عشان تبقى ظاهرة في Video Making وفي Live -->
-  <div class="preview">
-    <div class="previewhead">معاينة Live أثناء السرد</div>
-    <div class="character" id="character"><div class="bubble" id="bubble">اختر قصة وسأرويها!</div></div>
-    <div class="status" id="status">جاهز</div>
-  </div>
-
   <div class="side">
     <section id="videoPanel" class="app-panel editor">
       <h2>Video Making</h2>
@@ -43,12 +36,47 @@
     </section>
 
     <section id="livePanel" class="app-panel panel" hidden>
-      <h2>Live — تجربة ردود التعليقات</h2>
+      <h2>Live Studio</h2>
+      <div class="preview live-preview">
+        <div class="previewhead">معاينة الاستوديو المباشرة</div>
+        <div class="studio-canvas" id="studioCanvas">
+          <div class="brand-layer" id="brandLayer" aria-label="نصوص الاستوديو"></div>
+          <div class="character" id="character"><div class="bubble" id="bubble">اختر قصة وسأرويها!</div></div>
+        </div>
+        <div class="status" id="status">جاهز</div>
+      </div>
+
+      <section class="text-editor" aria-label="محرر نصوص الاستوديو">
+        <div class="text-editor-head"><h3>محرر نصوص الاستوديو</h3><span class="hint">أضف اسم القناة أو أي عبارة تظهر خلف الشخصية</span></div>
+        <div class="text-editor-actions">
+          <button id="addStudioText" type="button" class="primary">＋ إضافة نص</button>
+          <button id="saveStudioText" type="button">حفظ التصميم</button>
+        </div>
+        <div id="studioTextList" class="studio-text-list"></div>
+        <div id="studioTextControls" class="studio-text-controls" hidden>
+          <label for="studioTextValue">النص المحدد</label>
+          <input id="studioTextValue" maxlength="48" placeholder="مثلاً: SLINGO LIVE">
+          <div class="studio-control-grid">
+            <div><label for="studioTextColor">اللون</label><input id="studioTextColor" type="color" value="#ff5bd8"></div>
+            <div><label for="studioTextSize">حجم الخط <output id="studioTextSizeLabel">28</output>px</label><input id="studioTextSize" type="range" min="12" max="64" value="28"></div>
+            <div><label for="studioTextX">الموقع الأفقي</label><input id="studioTextX" type="range" min="0" max="100" value="8"></div>
+            <div><label for="studioTextY">الموقع العمودي</label><input id="studioTextY" type="range" min="0" max="100" value="8"></div>
+          </div>
+          <label for="studioTextFont">نوع الخط</label>
+          <select id="studioTextFont"><option value="system-ui">افتراضي</option><option value="Arial, sans-serif">Arial</option><option value="Tahoma, sans-serif">Tahoma</option><option value="Georgia, serif">Georgia</option><option value="monospace">Monospace</option></select>
+          <label class="glow-option"><input id="studioTextGlow" type="checkbox" checked> تأثير توهج Neon</label>
+          <button id="removeStudioText" type="button" class="stop">حذف النص المحدد</button>
+        </div>
+        <p class="hint">يمكنك سحب النص مباشرة داخل معاينة الاستوديو لتغيير مكانه. التعديلات تُحفظ على هذا الجهاز.</p>
+      </section>
+
+      <h3>Live — تجربة ردود التعليقات</h3>
       <p class="hint">هذا القسم تجريبي حتى يتم ربط بث مباشر فعلي. الشخصية تقرأ التعليق وتتفاعل وترد بصوتها.</p>
       <div id="modes" class="modes"></div>
       <div class="chat"><input id="chat" placeholder="اكتب تعليقاً لاختبار الرد…"><button id="send">إرسال</button></div>
       <div id="feed" class="feed"><div class="feedtitle">التعليقات وردود Live</div></div>
     </section>
+
   </div>
 </section>
-</main><script src="/rig.js?v=live-character-20261126"></script><script src="/app.js?v=ai-story-20261126"></script></body></html>
+</main><script src="/rig.js?v=live-character-20261126"></script><script src="/app.js?v=studio-text-editor-20261126"></script></body></html>

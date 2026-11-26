@@ -407,3 +407,77 @@ chat.addEventListener('keydown', e => { if (e.key === 'Enter') send.click(); });
 
 fetch('/api/state').then(r => r.json()).then(d => { statusEl.textContent = 'Backend connected · mock reactions active'; current = d.mode || current; })
   .catch(() => { statusEl.textContent = 'جاهز للعرض التجريبي'; });
+
+
+/* ---------- Live Studio text overlay editor ---------- */
+(() => {
+  const canvas = $('studioCanvas'), layer = $('brandLayer');
+  if (!canvas || !layer) return;
+  const STORE = 'live-studio-text-overlays-v1';
+  const controls = $('studioTextControls'), list = $('studioTextList');
+  const fields = {
+    text: $('studioTextValue'), color: $('studioTextColor'), size: $('studioTextSize'),
+    x: $('studioTextX'), y: $('studioTextY'), font: $('studioTextFont'), glow: $('studioTextGlow')
+  };
+  let items = [], selected = null, drag = null, nextId = 1;
+  const defaults = () => ({id:nextId++,text:'اسم قناتك',color:'#ff5bd8',size:28,x:8,y:8,font:'system-ui',glow:true});
+  function persist(){try{localStorage.setItem(STORE,JSON.stringify(items));}catch(_){}}
+  function load(){
+    try{const parsed=JSON.parse(localStorage.getItem(STORE)||'[]');if(Array.isArray(parsed))items=parsed.filter(x=>x&&typeof x.text==='string').map(x=>({...defaults(),...x}));}
+    catch(_){items=[];}
+    nextId=items.reduce((m,x)=>Math.max(m,Number(x.id)||0),0)+1;
+  }
+  function chosen(){return items.find(x=>x.id===selected)||null;}
+  function paint(){
+    layer.replaceChildren();
+    items.forEach(item=>{
+      const el=document.createElement('div');el.className='studio-brand-text'+(item.id===selected?' selected':'');
+      el.textContent=item.text;el.style.left=item.x+'%';el.style.top=item.y+'%';el.style.color=item.color;
+      el.style.fontSize=item.size+'px';el.style.fontFamily=item.font;
+      el.style.textShadow=item.glow?'0 0 5px currentColor,0 0 13px currentColor':'none';
+      el.dataset.id=item.id;
+      el.addEventListener('pointerdown',e=>{
+        e.preventDefault();selected=item.id;const rect=canvas.getBoundingClientRect();
+        drag={id:item.id,dx:e.clientX-rect.left-(item.x/100*rect.width),dy:e.clientY-rect.top-(item.y/100*rect.height)};
+        el.setPointerCapture(e.pointerId);sync();paint();
+      });
+      el.addEventListener('pointermove',e=>{
+        if(!drag||drag.id!==item.id)return;const rect=canvas.getBoundingClientRect();
+        item.x=Math.round(clamp((e.clientX-rect.left-drag.dx)/rect.width*100,0,100));
+        item.y=Math.round(clamp((e.clientY-rect.top-drag.dy)/rect.height*100,0,100));
+        fields.x.value=item.x;fields.y.value=item.y;el.style.left=item.x+'%';el.style.top=item.y+'%';
+      });
+      el.addEventListener('pointerup',()=>{drag=null;persist();});
+      el.addEventListener('pointercancel',()=>{drag=null;persist();});
+      layer.append(el);
+    });
+    list.replaceChildren();
+    items.forEach(item=>{
+      const b=document.createElement('button');b.type='button';b.textContent=item.text||'نص فارغ';
+      b.classList.toggle('active',item.id===selected);b.onclick=()=>{selected=item.id;sync();paint();};list.append(b);
+    });
+    controls.hidden=!chosen();
+  }
+  function sync(){
+    const item=chosen();controls.hidden=!item;if(!item)return;
+    fields.text.value=item.text;fields.color.value=item.color;fields.size.value=item.size;
+    fields.x.value=item.x;fields.y.value=item.y;fields.font.value=item.font;
+    fields.glow.checked=!!item.glow;$('studioTextSizeLabel').textContent=item.size;
+  }
+  function update(key,value){
+    const item=chosen();if(!item)return;item[key]=value;
+    if(key==='size')$('studioTextSizeLabel').textContent=value;
+    paint();persist();sync();
+  }
+  $('addStudioText').onclick=()=>{const item=defaults();items.push(item);selected=item.id;sync();paint();persist();fields.text.focus();fields.text.select();};
+  $('saveStudioText').onclick=()=>{persist();$('saveStudioText').textContent='تم الحفظ ✓';setTimeout(()=>$('saveStudioText').textContent='حفظ التصميم',1300);};
+  $('removeStudioText').onclick=()=>{items=items.filter(x=>x.id!==selected);selected=items.length?items[items.length-1].id:null;sync();paint();persist();};
+  fields.text.oninput=()=>update('text',fields.text.value);
+  fields.color.oninput=()=>update('color',fields.color.value);
+  fields.size.oninput=()=>update('size',Number(fields.size.value));
+  fields.x.oninput=()=>update('x',Number(fields.x.value));
+  fields.y.oninput=()=>update('y',Number(fields.y.value));
+  fields.font.onchange=()=>update('font',fields.font.value);
+  fields.glow.onchange=()=>update('glow',fields.glow.checked);
+  load();if(items.length)selected=items[0].id;sync();paint();
+})();
