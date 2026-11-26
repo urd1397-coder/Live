@@ -439,7 +439,7 @@ fetch('/api/state').then(r => r.json()).then(d => { statusEl.textContent = 'Back
       el.addEventListener('pointerdown',e=>{
         e.preventDefault();selected=item.id;const rect=canvas.getBoundingClientRect();
         drag={id:item.id,dx:e.clientX-rect.left-(item.x/100*rect.width),dy:e.clientY-rect.top-(item.y/100*rect.height)};
-        el.setPointerCapture(e.pointerId);sync();paint();
+        el.setPointerCapture(e.pointerId);sync();layer.querySelectorAll('.studio-brand-text').forEach(node=>node.classList.toggle('selected',Number(node.dataset.id)===selected));list.querySelectorAll('button').forEach((node,index)=>node.classList.toggle('active',items[index]?.id===selected));
       });
       el.addEventListener('pointermove',e=>{
         if(!drag||drag.id!==item.id)return;const rect=canvas.getBoundingClientRect();
