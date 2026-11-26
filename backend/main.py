@@ -100,7 +100,7 @@ def generate(req: GenerateRequest):
         if not text:
             raise HTTPException(status_code=502, detail='لم يرجع النموذج نصاً صالحاً. جرّب مرة ثانية.')
         return {'ok': True, 'script': text, 'model': result.get('model', 'AI')}
-    except HTTPError as exc:
+    except urllib.error.HTTPError as exc:
         raise HTTPException(status_code=502, detail='تعذّر الاتصال بخدمة كتابة الذكاء الاصطناعي. تحقق من إعدادات المفتاح والنموذج.')
     except (urllib.error.URLError, TimeoutError, json.JSONDecodeError):
         raise HTTPException(status_code=502, detail='تعذّر الاتصال بخدمة الذكاء الاصطناعي حالياً.')
