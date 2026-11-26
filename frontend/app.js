@@ -17,17 +17,17 @@ Rig.mount(character);
 // بيانات الانفعالات للصوت والواجهة. الوضعية الجسدية لكل انفعال معرّفة داخل rig.js (POSES).
 const EMOTIONS = {
   neutral: { label: 'عادي',   emoji: '🙂', vocal: { pitch: 1,    rate: 1    } },
-  laugh:   { label: 'يضحك',   emoji: '😂', vocal: { pitch: 1.25, rate: 1.1  }, post: 'ها ها ها ها ها', sfx: 'laugh' },
-  scream:  { label: 'يصرخ',   emoji: '😱', vocal: { pitch: 1.8,  rate: 1.25 }, pre: 'آآآآآآه!', sfx: 'scream' },
-  shock:   { label: 'يتفاجأ', emoji: '😲', vocal: { pitch: 1.5,  rate: 1.05 }, pre: 'هاااا؟!', sfx: 'shock' },
+  laugh:   { label: 'يضحك',   emoji: '😂', vocal: { pitch: 1.25, rate: 1.1  }, sfx: 'laugh' },
+  scream:  { label: 'يصرخ',   emoji: '😱', vocal: { pitch: 1.8,  rate: 1.25 }, sfx: 'scream' },
+  shock:   { label: 'يتفاجأ', emoji: '😲', vocal: { pitch: 1.5,  rate: 1.05 }, sfx: 'shock' },
   angry:   { label: 'يغضب',   emoji: '😡', vocal: { pitch: 0.65, rate: 1.2  }, sfx: 'angry' },
-  think:   { label: 'يفكر',   emoji: '🤔', vocal: { pitch: 0.9,  rate: 0.85 }, post: 'ممممم…', sfx: 'think' },
-  sad:     { label: 'حزين',   emoji: '😢', vocal: { pitch: 0.75, rate: 0.8  }, post: 'آه…', sfx: 'sad' },
-  scared:  { label: 'خايف',   emoji: '😨', vocal: { pitch: 1.6,  rate: 1.2  }, pre: 'أووه!', sfx: 'scared' },
+  think:   { label: 'يفكر',   emoji: '🤔', vocal: { pitch: 0.9,  rate: 0.85 }, sfx: 'think' },
+  sad:     { label: 'حزين',   emoji: '😢', vocal: { pitch: 0.75, rate: 0.8  }, sfx: 'sad' },
+  scared:  { label: 'خايف',   emoji: '😨', vocal: { pitch: 1.6,  rate: 1.2  }, sfx: 'scared' },
   sassy:   { label: 'ساخر',   emoji: '😏', vocal: { pitch: 1.1,  rate: 0.95 }, sfx: 'sassy' },
   excited: { label: 'متحمس',  emoji: '🤩', vocal: { pitch: 1.3,  rate: 1.2  }, sfx: 'excited' },
   serious: { label: 'جاد',    emoji: '😐', vocal: { pitch: 0.8,  rate: 0.95 } },
-  mocking: { label: 'يستهزئ', emoji: '😆', vocal: { pitch: 1.35, rate: 1.1  }, post: 'ها ها', sfx: 'laugh' }
+  mocking: { label: 'يستهزئ', emoji: '😆', vocal: { pitch: 1.35, rate: 1.1  }, sfx: 'laugh' }
 };
 let curEmo = 'neutral', beatTimer = null;
 function applyPose(name) { curEmo = EMOTIONS[name] ? name : 'neutral'; Rig.pose(curEmo); }
@@ -220,11 +220,9 @@ function parseScript(raw, tone) {
 async function playSegment(seg, id) {
   const E = EMOTIONS[seg.emotion] || EMOTIONS.neutral;
   applyPose(seg.emotion); floatFx(seg.emotion); sfx(E.sfx);
-  if (E.pre && vocalOn()) { startBeats(); await speak(E.pre, E.vocal, id); if (id !== runId) return; }
   startBeats();
   await speak(seg.text, E.vocal, id);
   if (id !== runId) return;
-  if (E.post && vocalOn()) { await speak(E.post, E.vocal, id); if (id !== runId) return; }
   stopBeats();
   await wait(seg.pause + (seg.emotion === 'shock' || seg.emotion === 'scream' ? 250 : 0));
 }
@@ -295,22 +293,57 @@ function makeScript(topic, type) {
 $('draft').onclick = () => { showScript(makeScript($('topic').value.trim(), kind)); bubble.textContent = 'جهزت السيناريو. عدّله أو اضغط عرض السرد.'; applyPose('think'); setTimeout(idle, 1200); };
 $('copy').onclick = () => navigator.clipboard.writeText($('script').value);
 
-const funStorySeeds = [
-  { topic: 'موظف حاول يهرب من اجتماع طويل', plot: 'قرر الموظف أن يختفي خمس دقائق، لكن نظام الشركة سجّل خروجه على أنه استقالة رسمية. وبعد سلسلة محاولات لإصلاح الموقف، صار مطلوباً منه تقديم عرض عن «فن الاختفاء» أمام المدير.', twist: 'المفاجأة أن المدير كان يبحث عن طريقة يهرب فيها من الاجتماع نفسه.' },
-  { topic: 'روبوت دخل مسابقة طبخ', plot: 'روبوت قرر يثبت أنه شيف، فقرأ الوصفات حرفياً وخلط مقادير كل الوصفات في قدر واحد. بدأ يشرح بثقة علمية، بينما المطبخ صار ساحة تجارب.', twist: 'لما تذوق الحكم الطبق اكتشف أنه فطور وغداء وعشاء… في لقمة واحدة.' },
-  { topic: 'قط صار مدير بناية', plot: 'سكان البناية انتخبوا القط مديراً بعد أن كان الوحيد الذي يراقب المشاكل. بدأ بإصدار قرارات غريبة، منع الأصوات بعد منتصف الليل وفرض رسوماً على فتح علب التونة.', twist: 'أول اعتراض رسمي كان من قط آخر، وقدّم الطلب على ورق ممزق.' },
-  { topic: 'شخص طلب من الذكاء الاصطناعي تنظيم حياته', plot: 'طلب جدولاً بسيطاً، فصار لديه جدول للنوم وجدول لجدول النوم. حاول الالتزام، وكلما أنجز مهمة ظهرت له ثلاث مهام إضافية.', twist: 'في النهاية حذف التطبيق، فأرسل له إشعاراً: «مهمة حذف التطبيق: مكتملة، مبروك!»' }
-];
-function makeFunScript(seed) {
-  return '🎬 عنوان الحلقة: ' + seed.topic + '\n\n[افتتاحية]\nاسمعوا هذه… ' + seed.topic + '. وأنا من البداية عندي إحساس إن الموضوع ما رح ينتهي بشكل طبيعي.\n\n[المشهد الأول — يتحمس]\n' + seed.plot +
-    '\n\n[تصعيد — يصرخ]\nلحظة! يعني كل هذا كان الحل؟ لا، لا، لا!\n\n[يفكر] طيب استنوا… خلونا نشوف كيف وصلت الأمور لهذه المرحلة؟\n\n[الذروة — يتفاجأ]\n' + seed.twist +
-    '\n\n[يضحك] هههه! مين كان يتوقع؟\n\n[خاتمة — يفكر]\nأنا عندي أسئلة أكثر من الإجابات، لكن أهم سؤال: لو كنت مكانه، شو كنت عملت؟ اكتبوا رأيكم، ونلتقي بقصة أغرب!';
+// ذاكرة تفضيلات محلية: تستخدم التقييمات لتوجيه صياغة القصص القادمة.
+const STYLE_MEMORY_KEY = 'live-story-style-memory-v1';
+function readStyleMemory() {
+  try { return JSON.parse(localStorage.getItem(STYLE_MEMORY_KEY) || '{"good":[],"bad":[]}'); }
+  catch (_) { return { good: [], bad: [] }; }
 }
-$('funStory').onclick = () => {
-  const seed = funStorySeeds[Math.floor(Math.random() * funStorySeeds.length)];
-  $('topic').value = seed.topic; showScript(makeFunScript(seed));
-  bubble.textContent = 'جهزت قصة كوميدية بتفاعلات جاهزة، عدّلها قبل الأداء.'; demo('laugh');
-};
+function saveStyleFeedback(kind) {
+  const memory = readStyleMemory();
+  const sample = $('script').value.slice(0, 420);
+  const target = kind === 'good' ? memory.good : memory.bad;
+  target.unshift(sample);
+  target.splice(4);
+  localStorage.setItem(STYLE_MEMORY_KEY, JSON.stringify(memory));
+  $('feedbackStatus').textContent = kind === 'good'
+    ? 'تم حفظ تفضيلك: حافظ على هذا الأسلوب.'
+    : 'تم حفظ ملاحظتك: قلّل التصنّع وغيّر الأسلوب في المرات القادمة.';
+}
+$('storyGood').onclick = () => saveStyleFeedback('good');
+$('storyBad').onclick = () => saveStyleFeedback('bad');
+
+async function generateWithAI() {
+  const topic = $('topic').value.trim();
+  if (!topic) { statusEl.textContent = 'اكتب موضوع القصة أولاً.'; $('topic').focus(); return; }
+  const memory = readStyleMemory();
+  const preferences = [
+    memory.good.length ? 'نماذج أعجبت المستخدم (استلهم الإيقاع فقط): ' + memory.good.join(' | ') : '',
+    memory.bad.length ? 'نماذج لم تعجب المستخدم؛ تجنب أسلوبها وسبب التصنّع فيها: ' + memory.bad.join(' | ') : ''
+  ].filter(Boolean).join('\n');
+  const button = $('funStory');
+  button.disabled = true; button.textContent = '⏳ الذكاء الاصطناعي يكتب القصة…';
+  statusEl.textContent = 'يكتب نصاً جديداً ويفهم نبرته…';
+  try {
+    const response = await fetch('/api/generate', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ topic, kind, tone: $('tone').value, preferences })
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.detail || 'فشل إنشاء النص.');
+    showScript(data.script);
+    bubble.textContent = 'النص جاهز. راجعه ثم شغّل السرد.';
+    $('feedbackBox').hidden = false;
+    $('feedbackStatus').textContent = 'قيّم النتيجة حتى تتعلم الأداة ذوقك في الكتابة.';
+    statusEl.textContent = 'تم إنشاء نص بالذكاء الاصطناعي';
+  } catch (error) {
+    statusEl.textContent = error.message;
+    bubble.textContent = 'تعذّر إنشاء النص حالياً.';
+  } finally {
+    button.disabled = false; button.textContent = '✨ إنشاء قصة بالذكاء الاصطناعي';
+  }
+}
+$('funStory').onclick = generateWithAI;
 
 $('perform').onclick = () => { ac(); performScript($('script').value, $('tone').value); };   // ac(): تفعيل الصوت بنقرة المستخدم
 $('stop').onclick = () => { cancelAll(); idle(); statusEl.textContent = 'جاهز'; $('progress').textContent = 'تم الإيقاف'; document.querySelectorAll('#reactmap .chip.now').forEach(c => c.classList.remove('now')); };
