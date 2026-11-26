@@ -176,49 +176,32 @@ function analyze(text, tone) {
 }
 
 /* تنظيف النص المنطوق: نحذف عناوين المشاهد وملاحظات الأداء، ونبقي القصة فقط */
-function cleanNarrationLine(value) {
-  let line = value.trim();
-  if (!line) return '';
-  // عناوين مستقلة لا ينبغي أن تتحول إلى كلام مسموع.
-  if (/^(?:#{1,6}\\s*)?(?:🎬\\s*)?(?:عنوان(?:\\s+الحلقة)?|افتتاحية|البداية|المشهد(?:\\s+(?:الأول|الثاني|الثالث|الرابع|الخامس|الأخير|\\d+))?|تصعيد|الذروة|خاتمة|النهاية|مقدمة|تمهيد)\\s*(?::|：|—|–|-).*$/u.test(line)) return '';
-  if (/^(?:#{1,6}\\s*)?(?:🎬\\s*)?(?:افتتاحية|البداية|المشهد(?:\\s+(?:الأول|الثاني|الثالث|الرابع|الخامس|الأخير|\\d+))?|تصعيد|الذروة|خاتمة|النهاية|مقدمة|تمهيد)\\s*$/u.test(line)) return '';
-  // احذف أي ملاحظة بين الأقواس، مع التقاط الانفعال إن كانت توجيهاً معروفاً.
-  line = line.replace(/\\[([^\\]]*)\\]|\\(([^)]*)\\)|\\*([^*]*)\\*/g, (m, a, b, c) => {
-    const note = a ?? b ?? c ?? '';
-    const emo = directive(note);
-    if (emo) line = line; // تُقرأ قيمة التوجيه في parseScript أدناه.
-    return ' ';
-  });
-  line = line.replace(/^\\s*(?:عنوان(?:\\s+الحلقة)?|المشهد(?:\\s+\\S+)?|افتتاحية|تصعيد|الذروة|خاتمة)\\s*[:：—–-]\\s*/u, '');
-  return line.replace(/^#+\\s*/, '').replace(/\\s+/g, ' ').trim();
-}
-
 /* يحول النص الكامل إلى مقاطع صوتية: العناوين وتعليمات الأداء لا تدخل إلى TTS */
 function parseScript(raw, tone) {
   const out = [];
-  for (const row of raw.split(/\\n+/)) {
+  for (const row of raw.split(/\n+/)) {
     const original = row.trim();
     if (!original) continue;
     // احصل على الانفعال من أي ملاحظة توجيهية قبل حذفها.
     let forced = null;
-    original.replace(/\\[([^\\]]*)\\]|\\(([^)]*)\\)|\\*([^*]*)\\*/g, (m, a, b, c) => {
+    original.replace(/\[([^\]]*)\]|\(([^)]*)\)|\*([^*]*)\*/g, (m, a, b, c) => {
       const emo = directive(a ?? b ?? c ?? '');
       if (emo) forced = emo;
       return m;
     });
     let line = original;
     // العناوين الواضحة تُحذف بالكامل حتى لو احتوت نصاً بعدها.
-    if (/^(?:#{1,6}\\s*)?(?:🎬\\s*)?(?:عنوان(?:\\s+الحلقة)?|افتتاحية|البداية|المشهد(?:\\s+(?:الأول|الثاني|الثالث|الرابع|الخامس|الأخير|\\d+))?|تصعيد|الذروة|خاتمة|النهاية|مقدمة|تمهيد)\\s*(?::|：|—|–|-).*$/u.test(line)) continue;
-    line = line.replace(/\\[([^\\]]*)\\]|\\(([^)]*)\\)|\\*([^*]*)\\*/g, ' ');
-    line = line.replace(/^\\s*#+\\s*/, '');
-    line = line.replace(/^\\s*(?:افتتاحية|البداية|المشهد(?:\\s+\\S+)?|تصعيد|الذروة|خاتمة|النهاية|مقدمة|تمهيد)\\s*[:：—–-]\\s*/u, '');
-    line = line.replace(/\\p{Extended_Pictographic}️?/gu, '').replace(/ه{3,}/g, 'ها ها ها').replace(/\\s+/g, ' ').trim();
-    if (!line || !/[\\p{L}\\p{N}]/u.test(line)) continue;
+    if (/^(?:#{1,6}\s*)?(?:🎬\s*)?(?:عنوان(?:\s+الحلقة)?|افتتاحية|البداية|المشهد(?:\s+(?:الأول|الثاني|الثالث|الرابع|الخامس|الأخير|\d+))?|تصعيد|الذروة|خاتمة|النهاية|مقدمة|تمهيد)\s*(?::|：|—|–|-).*$/u.test(line)) continue;
+    line = line.replace(/\[([^\]]*)\]|\(([^)]*)\)|\*([^*]*)\*/g, ' ');
+    line = line.replace(/^\s*#+\s*/, '');
+    line = line.replace(/^\s*(?:افتتاحية|البداية|المشهد(?:\s+\S+)?|تصعيد|الذروة|خاتمة|النهاية|مقدمة|تمهيد)\s*[:：—–-]\s*/u, '');
+    line = line.replace(/\p{Extended_Pictographic}️?/gu, '').replace(/ه{3,}/g, 'ها ها ها').replace(/\s+/g, ' ').trim();
+    if (!line || !/[\p{L}\p{N}]/u.test(line)) continue;
     const sentences = [];
-    for (const sentence of line.split(/(?<=[.!؟?…])\\s+/)) {
+    for (const sentence of line.split(/(?<=[.!؟?…])\s+/)) {
       if (sentence.length <= 140) { sentences.push(sentence); continue; }
       let cur = '';
-      for (const part of sentence.split(/(?<=[،,])\\s*/)) {
+      for (const part of sentence.split(/(?<=[،,])\s*/)) {
         if ((cur + part).length > 120 && cur) { sentences.push(cur); cur = part; }
         else cur += (cur ? ' ' : '') + part;
       }
