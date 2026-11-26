@@ -1,9 +1,14 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from pathlib import Path
 from pydantic import BaseModel
 
-app = FastAPI(title='Live', version='0.1.0')
+app = FastAPI(title='Live', version='0.2.0')
 app.add_middleware(CORSMiddleware, allow_origins=['*'], allow_methods=['*'], allow_headers=['*'])
+
+ROOT = Path(__file__).resolve().parent.parent
+FRONTEND = ROOT / 'frontend'
 
 class ModeRequest(BaseModel):
     mode: str
@@ -12,8 +17,16 @@ MODES = ['Funny', 'Sassy', 'Serious', 'Furious', 'Freaked Out', 'Mocking']
 state = {'mode': 'Funny', 'message': 'Live is ready.', 'connected': False}
 
 @app.get('/')
-def health():
-    return {'app': 'Live', 'status': 'ok'}
+def home():
+    return FileResponse(FRONTEND / 'index.html')
+
+@app.get('/style.css')
+def style():
+    return FileResponse(FRONTEND / 'style.css')
+
+@app.get('/app.js')
+def script():
+    return FileResponse(FRONTEND / 'app.js', media_type='application/javascript')
 
 @app.get('/api/state')
 def get_state():
