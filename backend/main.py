@@ -49,8 +49,8 @@ def mock_chat(payload: ChatRequest):
     text = payload.text.strip()
     if not text:
         raise HTTPException(status_code=400, detail='Empty message')
-    state['message'] = text
-    return {'ok': True, 'received': text, 'mode': state['mode']}
+    # Request-scoped only: never retain viewer comments in server state or a database.
+    return {'ok': True, 'mode': state['mode']}
 
 # Publishing/account connection is intentionally absent. No autonomous posting,
 # OAuth credentials, account tokens, or upload permissions are stored in this prototype.
