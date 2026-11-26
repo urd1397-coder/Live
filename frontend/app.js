@@ -405,8 +405,12 @@ const send = $('send'), chat = $('chat');
 send.onclick = () => { handleComment(chat.value); chat.value = ''; };
 chat.addEventListener('keydown', e => { if (e.key === 'Enter') send.click(); });
 
-fetch('/api/state').then(r => r.json()).then(d => { statusEl.textContent = 'Backend connected · mock reactions active'; current = d.mode || current; })
-  .catch(() => { statusEl.textContent = 'جاهز للعرض التجريبي'; });
+fetch('/api/state').then(r => r.json()).then(d => {
+  current = d.mode || current;
+  statusEl.textContent = d.ai_ready
+    ? 'الخادم متصل · إنشاء القصص بالذكاء الاصطناعي جاهز'
+    : 'الخادم متصل، لكن إنشاء القصص يحتاج إعداد مفتاح OPENAI_API_KEY في Render';
+}).catch(() => { statusEl.textContent = 'تعذّر الاتصال بالخادم'; });
 
 
 /* ---------- Live Studio text overlay editor ---------- */
@@ -435,11 +439,19 @@ fetch('/api/state').then(r => r.json()).then(d => { statusEl.textContent = 'Back
     layer.replaceChildren();
     items.forEach(item=>{
       const el=document.createElement('div');el.className='studio-brand-text'+(item.id===selected?' selected':'');
-      el.textContent=item.text;el.style.left=item.x+'%';el.style.top=item.y+'%';el.style.color=item.color;
+      el.textContent=item.text;el.contentEditable='false';el.setAttribute('role','textbox');el.setAttribute('aria-label','نص قابل للتحرير: '+item.text);el.title='انقر مرتين لتحرير النص مباشرة';el.style.left=item.x+'%';el.style.top=item.y+'%';el.style.color=item.color;
       el.style.fontSize=item.size+'px';el.style.fontFamily=item.font;
       el.style.textShadow=item.glow?'0 0 5px currentColor,0 0 13px currentColor':'none';
       el.dataset.id=item.id;
+      el.addEventListener('dblclick',e=>{
+        e.preventDefault();selected=item.id;sync();
+        el.contentEditable='true';el.classList.add('editing');el.focus();
+        const range=document.createRange();range.selectNodeContents(el);const selection=window.getSelection();selection.removeAllRanges();selection.addRange(range);
+      });
+      el.addEventListener('input',()=>{item.text=el.textContent;fields.text.value=item.text;persist();list.querySelectorAll('button').forEach((node,index)=>{if(items[index]?.id===item.id)node.textContent=item.text||'نص فارغ';});});
+      el.addEventListener('blur',()=>{el.contentEditable='false';el.classList.remove('editing');item.text=el.textContent;sync();paint();persist();});
       el.addEventListener('pointerdown',e=>{
+        if(el.isContentEditable)return;
         e.preventDefault();selected=item.id;const rect=canvas.getBoundingClientRect();
         drag={id:item.id,dx:e.clientX-rect.left-(item.x/100*rect.width),dy:e.clientY-rect.top-(item.y/100*rect.height)};
         el.setPointerCapture(e.pointerId);sync();layer.querySelectorAll('.studio-brand-text').forEach(node=>node.classList.toggle('selected',Number(node.dataset.id)===selected));list.querySelectorAll('button').forEach((node,index)=>node.classList.toggle('active',items[index]?.id===selected));
@@ -474,6 +486,30 @@ fetch('/api/state').then(r => r.json()).then(d => { statusEl.textContent = 'Back
   }
   $('addStudioText').onclick=()=>{const item=defaults();items.push(item);selected=item.id;sync();paint();persist();fields.text.focus();fields.text.select();};
   $('saveStudioText').onclick=()=>{persist();$('saveStudioText').textContent='تم الحفظ ✓';setTimeout(()=>$('saveStudioText').textContent='حفظ التصميم',1300);};
+  $('exportStudioLayout').onclick=()=>{
+    persist();const payload={format:'live-studio-layout',version:1,items};
+    const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
+    const url=URL.createObjectURL(blob);const a=document.createElement('a');
+    a.href=url;a.download='studio-layout.json';a.click();URL.revokeObjectURL(url);
+  };
+  $('importStudioLayoutButton').onclick=()=>$('importStudioLayout').click();
+  $('importStudioLayout').onchange=async e=>{
+    const file=e.target.files?.[0];if(!file)return;
+    try{
+      const data=JSON.parse(await file.text());
+      const incoming=Array.isArray(data)?data:data.items;
+      if(!Array.isArray(incoming)||incoming.length>30)throw new Error('ملف التصميم غير صالح أو يحتوي عناصر كثيرة.');
+      items=incoming.filter(x=>x&&typeof x.text==='string').map(x=>({
+        id:nextId++,text:x.text.slice(0,48),color:/^#[0-9a-f]{6}$/i.test(x.color)?x.color:'#ff5bd8',
+        size:clamp(Number(x.size)||28,12,64),x:clamp(Number(x.x)||0,0,100),y:clamp(Number(x.y)||0,0,100),
+        font:['system-ui','Arial, sans-serif','Tahoma, sans-serif','Georgia, serif','monospace'].includes(x.font)?x.font:'system-ui',
+        glow:x.glow!==false
+      }));
+      selected=items[0]?.id??null;sync();paint();persist();statusEl.textContent='تم استيراد ملف الاستوديو القابل للتعديل.';
+    }catch(err){statusEl.textContent=err.message||'تعذّر قراءة ملف التصميم.';}
+    e.target.value='';
+  };
+
   $('removeStudioText').onclick=()=>{items=items.filter(x=>x.id!==selected);selected=items.length?items[items.length-1].id:null;sync();paint();persist();};
   fields.text.oninput=()=>update('text',fields.text.value);
   fields.color.oninput=()=>update('color',fields.color.value);

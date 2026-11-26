@@ -20,10 +20,13 @@
         <div class="text-editor-actions">
           <button id="addStudioText" type="button" class="primary">＋ إضافة نص</button>
           <button id="saveStudioText" type="button">حفظ التصميم</button>
+          <button id="exportStudioLayout" type="button">تصدير ملف قابل للتعديل</button>
+          <button id="importStudioLayoutButton" type="button">استيراد ملف</button>
+          <input id="importStudioLayout" type="file" accept=".json,application/json" hidden>
         </div>
         <div id="studioTextList" class="studio-text-list"></div>
         <div id="studioTextControls" class="studio-text-controls" hidden>
-          <label for="studioTextValue">النص المحدد</label>
+          <label for="studioTextValue">النص المحدد (يمكن تحريره هنا أو بالنقر مرتين على النص في المعاينة)</label>
           <input id="studioTextValue" maxlength="48" placeholder="مثلاً: SLINGO LIVE">
           <div class="studio-control-grid">
             <div><label for="studioTextColor">اللون</label><input id="studioTextColor" type="color" value="#ff5bd8"></div>

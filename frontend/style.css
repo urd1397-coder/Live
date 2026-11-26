@@ -86,3 +86,7 @@
 .shared-studio .studio-canvas{min-height:430px}
 .shared-studio .text-editor{margin-top:16px}
 @media(max-width:600px){.shared-studio{padding:12px}.shared-studio .studio-canvas{min-height:340px}.shared-studio-title{align-items:flex-start;flex-direction:column}}
+
+/* Editable text layers, not flattened images */
+.studio-brand-text.editing{cursor:text;user-select:text;outline:1px dashed #fff;outline-offset:5px;min-width:24px;min-height:1.2em;white-space:pre-wrap}
+.studio-brand-text[contenteditable="true"]{pointer-events:auto;touch-action:auto}
