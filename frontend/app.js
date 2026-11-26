@@ -423,8 +423,11 @@ fetch('/api/state').then(r => r.json()).then(d => { statusEl.textContent = 'Back
   const defaults = () => ({id:nextId++,text:'اسم قناتك',color:'#ff5bd8',size:28,x:8,y:8,font:'system-ui',glow:true});
   function persist(){try{localStorage.setItem(STORE,JSON.stringify(items));}catch(_){}}
   function load(){
-    try{const parsed=JSON.parse(localStorage.getItem(STORE)||'[]');if(Array.isArray(parsed))items=parsed.filter(x=>x&&typeof x.text==='string').map(x=>({...defaults(),...x}));}
-    catch(_){items=[];}
+    try{
+      const saved=localStorage.getItem(STORE);
+      if(saved===null){const initial=defaults();initial.text='LIVE';items=[initial];}
+      else {const parsed=JSON.parse(saved);if(Array.isArray(parsed))items=parsed.filter(x=>x&&typeof x.text==='string').map(x=>({...defaults(),...x}));}
+    } catch(_){items=[];}
     nextId=items.reduce((m,x)=>Math.max(m,Number(x.id)||0),0)+1;
   }
   function chosen(){return items.find(x=>x.id===selected)||null;}
