@@ -125,12 +125,26 @@ const Rig = (() => {
     for (const [i, side] of ['L', 'R'].entries())
       els['a' + side + 'h'].querySelectorAll('.hs').forEach(g => g.classList.toggle('on', g.classList.contains('hs-' + hs[i])));
   }
-  // إيماءات عفوية أثناء الكلام: تحرّك الذراعين والرأس حول وضعية الانفعال
+  // إيماءات واضحة ومتبادلة مثل مقدم البث في المرجع: يشير بيد، ثم يفتح اليدين، ثم يبدّل الجهة.
+  let gestureStep = 0;
   function beat() {
     const j = (POSES[cur] || {}).amp ?? 20;
-    for (const k of ['aL1', 'aL2', 'aR1', 'aR2']) P[k].t = clamp(base[k] + rnd(-j, j * 1.2), -140, 175);
-    P.hr.t = base.hr + rnd(-4, 4);
-    if (Math.random() < .5) P.wL.t = rnd(-18, 18); else P.wR.t = rnd(-18, 18);
+    const phase = gestureStep++ % 4;
+    const patterns = [
+      { aL1: 28, aL2: 34, aR1: -8, aR2: 4, wL: -12, wR: 4, hands: ['point', 'open'] },
+      { aL1: -8, aL2: 4, aR1: 28, aR2: 34, wL: -4, wR: 12, hands: ['open', 'point'] },
+      { aL1: 42, aL2: 18, aR1: 42, aR2: 18, wL: 0, wR: 0, hands: ['open', 'open'] },
+      { aL1: 12, aL2: 58, aR1: 12, aR2: 58, wL: 10, wR: -10, hands: ['open', 'open'] }
+    ];
+    const g = patterns[phase];
+    const quiet = cur === 'sad' || cur === 'think';
+    for (const k of ['aL1', 'aL2', 'aR1', 'aR2']) {
+      const target = quiet ? base[k] + rnd(-j * .35, j * .35) : base[k] + g[k] + rnd(-j * .18, j * .18);
+      P[k].t = clamp(target, -140, 175);
+    }
+    P.hr.t = base.hr + rnd(-5, 5);
+    P.wL.t = g.wL + rnd(-5, 5); P.wR.t = g.wR + rnd(-5, 5);
+    if (cur !== 'angry' && cur !== 'sad') setHands(g.hands);
   }
   function rest() { for (const k of ['aL1', 'aL2', 'aR1', 'aR2', 'hr', 'wL', 'wR']) P[k].t = base[k]; }
   function speaking(on) { speakOn = !!on; if (!on) P.open.t = 0; }
