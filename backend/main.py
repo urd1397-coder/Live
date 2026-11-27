@@ -12,6 +12,7 @@
 import io
 from collections import OrderedDict
 import json
+import logging
 import os
 import re
 import time
@@ -22,10 +23,12 @@ from typing import Any, Dict, List, Optional
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
+log = logging.getLogger('live')
 app = FastAPI(title='Live', version='0.5.0')
 app.add_middleware(CORSMiddleware, allow_origins=[], allow_methods=['GET', 'POST'], allow_headers=['Content-Type'])
 ROOT = Path(__file__).resolve().parent.parent
@@ -358,6 +361,8 @@ def get_state():
         tts.append('elevenlabs')
     if os.getenv('OPENAI_API_KEY'):
         tts.append('openai')
+    if gemini_key():
+        tts.append('gemini')
     try:
         import edge_tts  # noqa: F401
         tts.append('edge')
@@ -502,6 +507,15 @@ VOICE_GROUPS = [
         ('ko-KR-InJoonNeural', '한국어 · 남성'), ('ko-KR-SunHiNeural', '한국어 · 여성'),
         ('zh-CN-YunxiNeural', '中文 · 男'), ('zh-CN-XiaoxiaoNeural', '中文 · 女')]),
 ]
+GEMINI_VOICES = [('Charon', 'رجولي هادئ'), ('Orus', 'رجولي حازم'), ('Puck', 'شبابي مرح'), ('Fenrir', 'متحمس'),
+                 ('Kore', 'نسائي واضح'), ('Aoede', 'نسائي دافئ'), ('Leda', 'نسائي شاب'), ('Zephyr', 'نسائي مشرق')]
+_FEMALE_RE = re.compile(r'Zariyah|Fatima|Noura|Amal|Laila|Aysha|Maryam|Amany|Layla|Sana|Rana|Salma|Iman|Reem|Amina|Mouna|Aria|Sonia|Denise|Elvira|Katja|Emel|Uzma|Dilara|Swara|Gadis|Svetlana|Elsa|Francisca|Nanami|SunHi|Xiaoxiao')
+_DIALECT = {'SA': 'Saudi', 'AE': 'Emirati Gulf', 'KW': 'Kuwaiti Gulf', 'QA': 'Qatari Gulf', 'BH': 'Bahraini Gulf', 'OM': 'Omani', 'YE': 'Yemeni',
+            'SY': 'Syrian Levantine', 'LB': 'Lebanese Levantine', 'JO': 'Jordanian Levantine', 'IQ': 'Iraqi', 'EG': 'Egyptian',
+            'LY': 'Libyan', 'TN': 'Tunisian', 'DZ': 'Algerian', 'MA': 'Moroccan'}
+_EMO_STYLE = {'excited': 'excitedly', 'sad': 'sadly and softly', 'angry': 'angrily', 'scared': 'nervously, scared', 'shock': 'in shock',
+              'think': 'thoughtfully, slowly', 'serious': 'seriously', 'laugh': 'laughing lightly', 'scream': 'loudly, shouting',
+              'sassy': 'sarcastically', 'mocking': 'mockingly', 'neutral': 'naturally, like a storyteller'}
 _VOICE_RE = re.compile(r'^[a-z]{2,3}-[A-Z]{2}-[A-Za-z]+Neural$')
 
 
@@ -509,6 +523,9 @@ def voice_catalog(tts: List[str]) -> List[Dict[str, str]]:
     out: List[Dict[str, str]] = []
     if 'elevenlabs' in tts:
         out.append({'key': 'eleven', 'label': 'صوتك في ElevenLabs', 'group': 'ElevenLabs', 'sample': _AR_SAMPLE})
+    if gemini_key():
+        out += [{'key': 'g:' + n, 'label': f'{n} · {d}', 'group': 'Gemini (مجاني · حصة يومية محدودة)', 'sample': _AR_SAMPLE}
+                for n, d in GEMINI_VOICES]
     if 'edge' in tts:
         for group, sample, voices in VOICE_GROUPS:
             for key, label in voices:
@@ -520,6 +537,94 @@ def voice_catalog(tts: List[str]) -> List[Dict[str, str]]:
 EMO_PROSODY = {'excited': (10, 6), 'sad': (-14, -6), 'angry': (8, -2), 'scared': (12, 8), 'shock': (6, 6), 'think': (-10, -2),
                'serious': (-6, -5), 'laugh': (6, 4), 'scream': (12, 8), 'sassy': (-4, 3), 'mocking': (3, 5), 'neutral': (0, 0)}
 _tts_cache: 'OrderedDict[tuple, bytes]' = OrderedDict()
+
+
+_gemini_tts_models: List[str] = []
+
+
+def _gemini_tts(text: str, voice_name: str, edge_voice: str = '', emotion: str = 'neutral') -> bytes:
+    """صوت Gemini (WAV). يحاكي اللهجة والانفعال بتعليمة قبل النص."""
+    import base64, wave
+    if not _gemini_tts_models:
+        names = []
+        try:
+            req = urllib.request.Request(GEMINI_BASE + '/models?pageSize=100', headers={'x-goog-api-key': gemini_key()})
+            with urllib.request.urlopen(req, timeout=20) as r:
+                names = [m['name'].split('/')[-1] for m in json.loads(r.read().decode('utf-8')).get('models', [])
+                         if 'tts' in m['name'] and 'generateContent' in m.get('supportedGenerationMethods', [])]
+        except Exception:  # noqa: BLE001
+            pass
+        _gemini_tts_models.extend(sorted(names, key=lambda n: ('pro' in n, n)) or ['gemini-2.5-flash-preview-tts'])
+    m = _VOICE_RE.match(edge_voice) if edge_voice else None
+    dialect = _DIALECT.get(edge_voice.split('-')[1], '') if m and edge_voice.startswith('ar-') else ''
+    lead = ('Say in a ' + dialect + ' Arabic accent, ' if dialect else 'Say ') + _EMO_STYLE.get(emotion, 'naturally') + ': '
+    last = 'unknown'
+    for model in list(_gemini_tts_models)[:3]:
+        try:
+            data = _post_json(f'{GEMINI_BASE}/models/{model}:generateContent', {'x-goog-api-key': gemini_key()}, {
+                'contents': [{'parts': [{'text': lead + text}]}],
+                'generationConfig': {'responseModalities': ['AUDIO'], 'speechConfig': {'voiceConfig': {'prebuiltVoiceConfig': {'voiceName': voice_name}}}}}, 90)
+        except urllib.error.HTTPError as exc:
+            last = f'{model}:{exc.code}'
+            continue
+        parts = ((data.get('candidates') or [{}])[0].get('content') or {}).get('parts', [])
+        for part in parts:
+            inline = part.get('inlineData')
+            if inline and inline.get('data'):
+                rate = 24000
+                mm = re.search(r'rate=(\d+)', inline.get('mimeType', ''))
+                if mm:
+                    rate = int(mm.group(1))
+                buf = io.BytesIO()
+                with wave.open(buf, 'wb') as w:
+                    w.setnchannels(1); w.setsampwidth(2); w.setframerate(rate); w.writeframes(base64.b64decode(inline['data']))
+                return buf.getvalue()
+        last = model + ':empty'
+    raise RuntimeError('gemini-tts ' + last)
+
+
+async def _edge_synth(text: str, voice: str, pct: int, hz: int) -> bytes:
+    import edge_tts
+    err: Optional[Exception] = None
+    for _ in range(2):
+        try:
+            buf = io.BytesIO()
+            async for chunk in edge_tts.Communicate(text, voice, rate=f'{pct:+d}%', pitch=f'{hz:+d}Hz').stream():
+                if chunk['type'] == 'audio':
+                    buf.write(chunk['data'])
+            if buf.getvalue():
+                return buf.getvalue()
+            err = RuntimeError('no audio returned')
+        except Exception as exc:  # noqa: BLE001
+            err = exc
+    raise err or RuntimeError('edge failed')
+
+
+@app.get('/api/tts/check')
+async def tts_check(voice: str = 'ar-SY-LaithNeural'):
+    """فحص سريع يوضح لماذا لا يعمل الصوت العصبي على الخادم."""
+    out: Dict[str, Any] = {'edge_installed': False, 'gemini_key': bool(gemini_key())}
+    try:
+        import edge_tts  # noqa: F401
+        out['edge_installed'] = True
+    except Exception as exc:  # noqa: BLE001
+        out['edge_error'] = f'{type(exc).__name__}: {exc}'[:200]
+    if out['edge_installed']:
+        for v in dict.fromkeys([voice, 'ar-SA-HamedNeural']):
+            t0 = time.time()
+            try:
+                audio = await _edge_synth('مرحبا', v, 0, 0)
+                out['edge_' + v] = f'ok {len(audio)} bytes in {time.time() - t0:.1f}s'
+            except Exception as exc:  # noqa: BLE001
+                out['edge_' + v] = f'FAIL {type(exc).__name__}: {str(exc)[:160]}'
+    if gemini_key():
+        t0 = time.time()
+        try:
+            audio = _gemini_tts('مرحبا بكم', 'Kore')
+            out['gemini_tts'] = f'ok {len(audio)} bytes in {time.time() - t0:.1f}s'
+        except Exception as exc:  # noqa: BLE001
+            out['gemini_tts'] = f'FAIL {type(exc).__name__}: {str(exc)[:160]}'
+    return out
 
 
 def _http_bytes(url: str, headers: Dict[str, str], body: Dict[str, Any]) -> bytes:
@@ -547,8 +652,14 @@ async def tts(req: TtsRequest):
                                  'speed': req.rate, 'response_format': 'mp3',
                                  'instructions': 'تحدث بالعربية بأسلوب راوٍ طبيعي هادئ، بدون مبالغة تمثيلية.'})
             return Response(audio, media_type='audio/mpeg')
+        if req.voice.startswith('g:') and gemini_key():
+            try:
+                audio = await run_in_threadpool(_gemini_tts, text, req.voice[2:], '', req.emotion)
+            except Exception as exc:  # noqa: BLE001
+                raise HTTPException(502, f'صوت Gemini تعذّر ({str(exc)[:90]}). غالباً وصلت للحصة اليومية المجانية.')
+            return Response(audio, media_type='audio/wav')
         try:
-            import edge_tts
+            import edge_tts  # noqa: F401
         except Exception:  # noqa: BLE001
             raise HTTPException(501, 'لا يوجد مزوّد صوت على الخادم. سيُستخدم صوت المتصفح.')
         voice = EDGE_VOICES.get(req.voice) or (req.voice if _VOICE_RE.match(req.voice) else EDGE_VOICES['male'])
@@ -558,16 +669,21 @@ async def tts(req: TtsRequest):
         if key in _tts_cache:
             _tts_cache.move_to_end(key)
             return Response(_tts_cache[key], media_type='audio/mpeg')
-        buf = io.BytesIO()
-        async for chunk in edge_tts.Communicate(text, voice, rate=f'{pct:+d}%', pitch=f'{hz:+d}Hz').stream():
-            if chunk['type'] == 'audio':
-                buf.write(chunk['data'])
-        if not buf.getvalue():
-            raise HTTPException(502, 'لم يرجع مزوّد الصوت أي صوت.')
-        _tts_cache[key] = buf.getvalue()
+        try:
+            audio = await _edge_synth(text, voice, pct, hz)
+        except Exception as exc:  # noqa: BLE001
+            log.warning('edge-tts failed for %s: %s: %s', voice, type(exc).__name__, exc)
+            if gemini_key():      # بديل طبيعي بدل صوت المتصفح
+                try:
+                    gv = 'Kore' if _FEMALE_RE.search(voice) else 'Charon'
+                    return Response(await run_in_threadpool(_gemini_tts, text, gv, voice, req.emotion), media_type='audio/wav')
+                except Exception as exc2:  # noqa: BLE001
+                    log.warning('gemini tts fallback failed: %s', exc2)
+            raise HTTPException(502, f'الصوت العصبي ({voice}) تعذّر على الخادم: {type(exc).__name__} {str(exc)[:80]}')
+        _tts_cache[key] = audio
         while len(_tts_cache) > 120:
             _tts_cache.popitem(last=False)
-        return Response(buf.getvalue(), media_type='audio/mpeg')
+        return Response(audio, media_type='audio/mpeg')
     except HTTPException:
         raise
     except (urllib.error.URLError, TimeoutError):

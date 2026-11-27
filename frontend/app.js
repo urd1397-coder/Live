@@ -260,7 +260,14 @@ function refreshVoiceList() {
 bind('voiceGroup', () => { fillGroupVoices(); const v = $('voiceSel').value; if (v) { P.voice.key = v; save(); if (typeof showSegEditor === 'function') showSegEditor(); } }, 'change');
 bind('voiceSel', el => { P.voice.key = el.value; save(); }, 'change');
 bind('rate', el => { P.voice.rate = +el.value; $('rateV').textContent = (+el.value).toFixed(2); save(); });
-$('voiceTest').onclick = async () => { Voice.unlock(); Characters.pose('neutral'); Characters.speaking(true); await Voice.speak(Voice.sampleFor(P.voice.key) || 'أهلاً بكم، هذا صوتي في الاستوديو. جرّبوا السرعة التي تناسب القصة.', { voice: P.voice.key, rate: P.voice.rate, onLevel: v => Characters.level(v) }); Characters.speaking(false); };
+$('voiceTest').onclick = async () => {
+  Voice.unlock(); Characters.pose('neutral'); Characters.speaking(true); const info = $('voiceInfo'); info.className = 'banner'; info.textContent = 'جارٍ تجهيز الصوت…';
+  await Voice.speak(Voice.sampleFor(P.voice.key) || 'أهلاً بكم، هذا صوتي في الاستوديو. جرّبوا السرعة التي تناسب القصة.', { voice: P.voice.key, rate: P.voice.rate, onLevel: v => Characters.level(v) }); Characters.speaking(false);
+  if (Voice.last.engine === 'server') { info.className = 'banner ok'; info.textContent = '✅ تكلّم بالصوت العصبي المختار.'; }
+  else if (Voice.last.engine === 'browser' && /^s:/.test(P.voice.key)) { info.className = 'banner warn'; info.textContent = '⚠️ ' + (Voice.last.error || 'تعذّر الصوت العصبي') + ' (اضغط «فحص الصوت» لمعرفة السبب).'; }
+};
+$('voiceCheck').onclick = async () => { const o = $('voiceDiag'); o.hidden = false; o.textContent = 'جارٍ الفحص…'; try { const v = P.voice.key.startsWith('s:') ? P.voice.key.slice(2) : 'ar-SY-LaithNeural'; const r = await (await fetch('/api/tts/check?voice=' + encodeURIComponent(v))).json(); o.textContent = Object.entries(r).map(([k, x]) => k + ': ' + x).join('\n'); } catch (e) { o.textContent = 'تعذّر الفحص: ' + e.message; } };
+Voice.onWarn = msg => { setStatus('⚠️ ' + msg); const i = $('voiceInfo'); i.className = 'banner warn'; i.textContent = '⚠️ ' + msg; };
 if ('speechSynthesis' in window) speechSynthesis.onvoiceschanged = refreshVoiceList;
 
 /* ---------- مزامنة الواجهة مع المشروع ---------- */

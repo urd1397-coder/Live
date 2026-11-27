@@ -159,3 +159,4 @@ button.big{display:block;width:100%;padding:13px 14px;font-size:16px;font-weight
 .sep{border:0;border-top:1px solid var(--line);margin:18px 0 6px}
 .tips{padding-inline-start:20px;margin:12px 0}.tips li{margin:5px 0}
 .t-status{white-space:normal;line-height:1.35;max-height:2.8em;overflow:hidden}
+.diag{direction:ltr;text-align:left;white-space:pre-wrap;background:#0e0f14;border:1px solid var(--line);border-radius:10px;padding:10px;font-size:12px;margin:8px 0;color:#cfd0e0}

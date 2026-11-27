@@ -10,13 +10,15 @@ const Voice = (() => {
     excited: [.06, .06], sad: [-.1, -.05], angry: [.05, -.05], scared: [.07, .06], shock: [.03, .05], think: [-.06, 0], serious: [-.04, -.04],
     laugh: [.04, .04], scream: [.06, .06], sassy: [-.03, .02], mocking: [.02, .04], neutral: [0, 0]
   };
-  let caps = { tts: [] }, actx = null, analyser = null, runId = 0, cur = null, serverFailures = 0;
+  let caps = { tts: [] }, actx = null, analyser = null, runId = 0, cur = null, lastWarn = '', last = { engine: '', error: '' };
   const cache = new Map();
 
   async function init() { try { caps = await (await fetch('/api/state')).json(); } catch (e) { caps = { tts: [] }; } return caps; }
   function ctx() { if (!actx) { const C = window.AudioContext || window.webkitAudioContext; if (!C) return null; actx = new C(); analyser = actx.createAnalyser(); analyser.fftSize = 512; analyser.connect(actx.destination); } return actx; }
   function unlock() { const c = ctx(); if (c && c.state === 'suspended') c.resume(); }
-  const serverOn = () => caps.tts && caps.tts.length > 0 && serverFailures < 2;
+  const serverOn = () => caps.tts && caps.tts.length > 0;
+  const api = { onWarn: null };
+  function warn(msg) { last.error = msg; if (msg !== lastWarn) { lastWarn = msg; api.onWarn && api.onWarn(msg); } }
 
   // أصوات المتصفح: العربية أولاً ثم بقية اللغات
   function browserVoices() {
@@ -38,10 +40,10 @@ const Voice = (() => {
     const c = ctx(); if (!c) return null; const key = keyOf(text, o);
     if (!cache.has(key)) {
       const p = fetch('/api/tts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, voice: (o.voice || '').replace(/^s:/, ''), rate: o.rate || 1, emotion: o.emotion || 'neutral', intensity: o.intensity == null ? .6 : o.intensity }) })
-        .then(r => { if (!r.ok) throw new Error('tts ' + r.status); return r.arrayBuffer(); })
+        .then(async r => { if (!r.ok) { let d = ''; try { d = (await r.json()).detail || ''; } catch (e) { /* no body */ } throw new Error(d || ('خطأ ' + r.status)); } return r.arrayBuffer(); })
         .then(b => new Promise((res, rej) => c.decodeAudioData(b, res, rej)))
-        .then(buf => { serverFailures = 0; return buf; });
-      p.catch(() => { serverFailures++; cache.delete(key); });
+        .then(buf => buf);
+      p.catch(() => { cache.delete(key); });
       cache.set(key, p); if (cache.size > 24) cache.delete(cache.keys().next().value);
     }
     return cache.get(key);
@@ -49,7 +51,7 @@ const Voice = (() => {
   async function speakServer(text, o, id) {
     const buf = await prefetch(text, o);
     if (id !== runId) return { dur: 0 };
-    const c = ctx(), src = c.createBufferSource(); src.buffer = buf; src.connect(analyser);
+    last.engine = 'server'; last.error = ''; lastWarn = ''; const c = ctx(), src = c.createBufferSource(); src.buffer = buf; src.connect(analyser);
     const data = new Uint8Array(analyser.fftSize); let smooth = 0, raf = 0;
     const tick = () => {
       analyser.getByteTimeDomainData(data); let sum = 0; for (let i = 0; i < data.length; i++) { const v = (data[i] - 128) / 128; sum += v * v; }
@@ -91,8 +93,9 @@ const Voice = (() => {
   async function speak(text, o = {}) {
     cancel(false); const id = ++runId; text = (text || '').trim(); if (!text) return { dur: 0 };
     if (serverOn() && (!o.voice || o.voice.startsWith('s:'))) {
-      try { return await speakServer(text, o, id); } catch (e) { if (id !== runId) return { dur: 0 }; }   // سقطنا إلى المتصفح
+      try { return await speakServer(text, o, id); } catch (e) { if (id !== runId) return { dur: 0 }; warn(String(e.message || e).slice(0, 200) + ' — استُخدم صوت المتصفح بدلاً منه.'); }   // سقطنا إلى المتصفح
     }
+    last.engine = 'browser';
     return speakBrowser(text, o, id);
   }
   function cancel(bump = true) { if (bump) runId++; if (cur) cur.stop(); if ('speechSynthesis' in window) speechSynthesis.cancel(); }
@@ -102,5 +105,5 @@ const Voice = (() => {
   function captureStream() { const c = ctx(); if (!c) return null; if (!recDest) { recDest = c.createMediaStreamDestination(); analyser.connect(recDest); } return recDest.stream; }
   function releaseCapture() { if (recDest) { try { analyser.disconnect(recDest); } catch (e) { /* ok */ } recDest = null; } }
 
-  return { init, unlock, listVoices, sampleFor, speak, prefetch, cancel, captureStream, releaseCapture, get caps() { return caps; }, get serverOn() { return serverOn(); } };
+  return Object.assign(api, { init, unlock, listVoices, sampleFor, speak, prefetch, cancel, captureStream, releaseCapture, get caps() { return caps; }, get serverOn() { return serverOn(); }, get last() { return last; } });
 })();
