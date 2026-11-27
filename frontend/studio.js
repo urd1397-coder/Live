@@ -127,10 +127,13 @@ $('btnFull').onclick = () => { if (needTopic()) return; guard(async () => {
 $('btnAnalyzeAI').onclick = () => guard(async () => { const t = $('scriptText').value.trim(); if (!t) return; setStatus('الذكاء الاصطناعي يحلل النص…'); try { const d = await api('/api/analyze', { text: t, tone: $('tone').value }); setSegments(d.segments); setStatus('تم التحليل'); } catch (e) { setStatus(e.message); } });
 $('btnAnalyzeLocal').onclick = () => { const t = $('scriptText').value.trim(); if (!t) return; setSegments(Analysis.parse(t, $('tone').value)); setStatus('تم التحليل محلياً'); };
 function applyAiState() { for (const id of ['btnFull', 'btnPlot', 'btnWrite', 'btnPolish', 'btnAnalyzeAI']) $(id).disabled = !aiReady; }
+$('btnAnalyzeAI').hidden = true;
+function setStoryMode(m) { document.querySelectorAll('#storyMode .type').forEach(b => b.classList.toggle('on', b.dataset.sm === m)); $('smOwn').hidden = m !== 'own'; $('smAi').hidden = m !== 'ai'; }
+$('storyMode').addEventListener('click', e => { const b = e.target.closest('[data-sm]'); if (b) setStoryMode(b.dataset.sm); });
 (async () => { try { const s = await (await fetch('/api/state')).json(); aiReady = !!s.ai_ready; } catch (e) { aiReady = false; }
   const b = $('aiBanner'); b.hidden = false; b.className = aiReady ? 'banner ok' : 'banner warn';
-  b.textContent = aiReady ? 'الكاتب الذكي جاهز: حبكة ثم سرد ثم مراجعة.' : 'الكاتب الذكي غير مفعّل: أضف ANTHROPIC_API_KEY (أو OPENAI_API_KEY) في متغيرات البيئة على Render ثم أعد النشر. حتى ذلك الحين يمكنك لصق نص جاهز وتحليله محلياً.';
-  applyAiState(); })();
+  b.textContent = aiReady ? 'الكاتب الذكي جاهز: حبكة ثم سرد ثم مراجعة.' : 'هذه الميزة تحتاج مفتاح ذكاء اصطناعي. الأسهل والمجاني: مفتاح Gemini من aistudio.google.com/apikey، ضعه في Render باسم GEMINI_API_KEY ثم أعد النشر. حتى ذلك الحين استخدم «عندي نص جاهز».';
+  applyAiState(); $('btnAnalyzeAI').hidden = !aiReady; if (aiReady && !segs().length) setStoryMode('ai'); })();
 
 /* ذاكرة الأسلوب: تقييمك يُرسل للكاتب في الكتابات القادمة */
 const MEM = 'live-story-style-memory-v2';

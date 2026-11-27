@@ -111,6 +111,13 @@ const Exporter = (() => {
     } catch (e) { setStatus('فشل التصدير: ' + e.message); Voice.releaseCapture(); }
     finally { running = false; btn.disabled = false; }
   }
+  function refreshInfo() {
+    const el = $('expInfo'), n = segs().length, ok = serverVoice();
+    if (!n) { el.className = 'banner warn'; el.textContent = 'لا يوجد نص بعد. اكتب القصة وحلّلها أولاً من تبويب «القصة».'; }
+    else if (ok) { el.className = 'banner ok'; el.textContent = `جاهز: ${n} مقطع. الصوت سيدخل داخل الفيديو.`; }
+    else { el.className = 'banner warn'; el.textContent = `${n} مقطع. الصوت الحالي من المتصفح ولا يمكن تسجيله، فسيخرج الفيديو بدون صوت. اختر صوتاً عصبياً (🎙) من تبويب «الصوت» لتسجيله.`; }
+  }
+  $('tabs').addEventListener('click', e => { if (e.target.closest('[data-tab=export]')) refreshInfo(); });
   $('tStop').addEventListener('click', () => { if (running) aborted = true; });
   $('tExport').onclick = () => run(+$('expQ').value);
   return { run, get running() { return running; } };

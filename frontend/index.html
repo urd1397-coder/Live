@@ -40,8 +40,6 @@
       <button id="tStop" type="button" aria-label="إيقاف">⏹</button>
       <span class="t-time" id="tTime">0:00</span>
       <span class="t-status" id="status">جاهز</span>
-      <select id="expQ" class="mini" aria-label="جودة التصدير"><option value="540">540p</option><option value="720" selected>720p</option><option value="1080">1080p</option></select><button id="tExport" type="button">🎬 تصدير فيديو</button>
-      <label class="chk"><input type="checkbox" id="chkGuides"> حدود آمنة</label>
     </div>
   </section>
 
@@ -66,52 +64,61 @@
 
   <aside class="panel" id="panel">
     <nav class="tabs" id="tabs" role="tablist">
-      <button data-tab="story" class="on" role="tab">✍️ القصة</button>
-      <button data-tab="scene" role="tab">🖼 المشهد</button>
-      <button data-tab="char" role="tab">🧍 الشخصية</button>
-      <button data-tab="texts" role="tab">🔤 النصوص</button>
-      <button data-tab="voice" role="tab">🎙 الصوت</button>
-      <button data-tab="live" role="tab">🔴 بث</button>
+      <button data-tab="story" class="on" role="tab"><i>✍️</i>القصة</button>
+      <button data-tab="voice" role="tab"><i>🎙</i>الصوت</button>
+      <button data-tab="char" role="tab"><i>🧍</i>الشخصية</button>
+      <button data-tab="scene" role="tab"><i>🖼</i>المشهد</button>
+      <button data-tab="export" role="tab"><i>🎬</i>تصدير</button>
+      <button data-tab="live" role="tab"><i>🔴</i>بث</button>
     </nav>
 
     <!-- القصة -->
     <div class="pane on" data-pane="story">
-      <div id="aiBanner" class="banner" hidden></div>
-      <div class="types" id="kindBtns"><button class="type on" data-kind="story">قصّة</button><button class="type" data-kind="commentary">تعليق</button><button class="type" data-kind="reaction">ردّة فعل</button></div>
-      <label for="topic">الموضوع، أو ألصق نص القصة التي تريد إعادة سردها</label>
-      <textarea id="topic" rows="4" placeholder="مثلاً: موظف أرشيف يكتشف أن الملف الممنوع يحمل اسمه…"></textarea>
-      <div class="row2">
-        <label>النبرة <select id="tone"><option>ساخر وخفيف</option><option>هادئ وقصصي</option><option>حماسي</option><option>هجومي كوميدي</option><option>جاد ومشوّق</option></select></label>
-        <label>اللهجة <select id="dialect"><option>بيضاء</option><option>شامية</option><option>خليجية</option><option>مصرية</option><option>فصحى مبسطة</option></select></label>
-      </div>
-      <label>عدد المقاطع <output id="lenV">16</output><input id="len" type="range" min="8" max="32" value="16"></label>
-      <label for="notes">ملاحظات اختيارية (نوع القصة، أجواء، شخصيات، ممنوعات…)</label>
-      <input id="notes" placeholder="مثلاً: غموض وتشويق، نهاية مؤثرة">
-      <button id="btnFull" class="primary" type="button">✨ اكتب قصة قوية (حبكة ← سرد ← مراجعة)</button>
-      <div class="steps">
-        <button id="btnPlot" type="button">① الحبكة فقط</button><button id="btnWrite" type="button">② اكتب السرد</button><button id="btnPolish" type="button">③ راجع وحسّن</button>
-      </div>
-      <div id="progress" class="progress" hidden></div>
+      <div class="how"><b>كيف أبدأ؟</b> ① اكتب القصة أو الصقها ② اضغط «حلّل وجهّز» ③ اضغط ▶ تشغيل ④ من «تصدير» نزّل الفيديو.</div>
+      <div class="types seg2" id="storyMode"><button class="type on" data-sm="own">📝 عندي نص جاهز</button><button class="type" data-sm="ai">✨ اكتب لي قصة</button></div>
 
-      <details id="plotCard" class="card" hidden open>
-        <summary>📖 كتاب القصة (عدّله قبل الكتابة)</summary>
-        <label>العنوان</label><input id="bTitle">
-        <label>الفكرة في جملة</label><textarea id="bLogline" rows="2"></textarea>
-        <label>الجملة الأولى (الخطّاف)</label><textarea id="bHook" rows="2"></textarea>
-        <label>الرهان: ما الذي سيُخسر</label><input id="bStakes">
-        <label>المفاجأة (يجب أن تعيد تفسير ما سبق)</label><textarea id="bTwist" rows="2"></textarea>
-        <label>الصورة الأخيرة</label><input id="bEnding">
-        <label>النبضات (نبضة في كل سطر)</label><textarea id="bBeats" rows="8"></textarea>
-      </details>
-      <details id="issuesCard" class="card" hidden><summary>🧐 ملاحظات المحرر القاسي</summary><ul id="issuesList"></ul></details>
-
-      <details class="card" open>
-        <summary>📝 النص الكامل (اكتب أو الصق، ثم حلّل)</summary>
-        <p class="hint">وجّه الانفعال يدوياً بوسم قبل أي جملة: <b>[يصرخ]</b> <b>[يضحك]</b> <b>[يفكر]</b> <b>[يتفاجأ]</b> <b>[يغضب]</b> <b>[حزين]</b> <b>[يخاف]</b> <b>[يسخر]</b> <b>[يتحمس]</b> <b>[جاد]</b>. الوسوم لا تُقرأ بصوت عالٍ.</p>
-        <textarea id="scriptText" rows="9" placeholder="ألصق نصك هنا…"></textarea>
-        <div class="steps"><button id="btnAnalyzeAI" type="button">🧠 حلّل بالذكاء الاصطناعي</button><button id="btnAnalyzeLocal" type="button">⚡ حلّل محلياً</button></div>
+      <div id="smOwn">
+        <label for="scriptText">النص (كل جملة في سطر أو مقطع، أو فقرة كاملة)</label>
+        <textarea id="scriptText" rows="8" placeholder="ألصق نصك هنا…"></textarea>
+        <button id="btnAnalyzeLocal" class="primary big" type="button">⚡ حلّل وجهّز المقاطع</button>
+        <button id="btnAnalyzeAI" type="button">🧠 تحليل أدق بالذكاء الاصطناعي</button>
+        <details class="card"><summary>🎭 تحكم يدوي بالانفعال (اختياري)</summary>
+          <p class="hint">ضع وسماً قبل أي جملة: <b>[يصرخ]</b> <b>[يضحك]</b> <b>[يفكر]</b> <b>[يتفاجأ]</b> <b>[يغضب]</b> <b>[حزين]</b> <b>[يخاف]</b> <b>[يسخر]</b> <b>[يتحمس]</b> <b>[جاد]</b>. الوسوم لا تُقرأ بصوت عالٍ. والنبرة العامة تتحكم بها القائمة في «اكتب لي قصة».</p>
+        </details>
         <div id="fbBox" class="feedback" hidden><span>هل أعجبك الأسلوب؟</span><button id="fbGood" type="button">👍 طبيعي</button><button id="fbBad" type="button">👎 مصطنع</button></div>
-      </details>
+      </div>
+
+      <div id="smAi" hidden>
+        <div id="aiBanner" class="banner" hidden></div>
+        <label for="topic">عن ماذا تريد القصة؟ (أو ألصق قصة لإعادة سردها)</label>
+        <textarea id="topic" rows="4" placeholder="مثلاً: موظف أرشيف يكتشف أن الملف الممنوع يحمل اسمه…"></textarea>
+        <div class="row2">
+          <label>النبرة <select id="tone"><option>ساخر وخفيف</option><option>هادئ وقصصي</option><option>حماسي</option><option>هجومي كوميدي</option><option>جاد ومشوّق</option></select></label>
+          <label>اللهجة <select id="dialect"><option>بيضاء</option><option>شامية</option><option>خليجية</option><option>مصرية</option><option>فصحى مبسطة</option></select></label>
+        </div>
+        <button id="btnFull" class="primary big" type="button">✨ اكتب قصة قوية</button>
+        <p class="hint">يمر بثلاث مراحل: حبكة، ثم سرد، ثم مراجعة محرر قاسٍ. تستغرق دقيقة تقريباً.</p>
+        <div id="progress" class="progress" hidden></div>
+        <details class="card"><summary>⚙️ خيارات متقدمة</summary>
+          <div class="types" id="kindBtns"><button class="type on" data-kind="story">قصّة</button><button class="type" data-kind="commentary">تعليق</button><button class="type" data-kind="reaction">ردّة فعل</button></div>
+          <label>عدد المقاطع <output id="lenV">16</output><input id="len" type="range" min="8" max="32" value="16"></label>
+          <label for="notes">ملاحظات (نوع القصة، أجواء، شخصيات، ممنوعات…)</label>
+          <input id="notes" placeholder="مثلاً: غموض وتشويق، نهاية مؤثرة">
+          <p class="hint">أو نفّذ المراحل واحدة واحدة:</p>
+          <div class="steps"><button id="btnPlot" type="button">① الحبكة فقط</button><button id="btnWrite" type="button">② اكتب السرد</button><button id="btnPolish" type="button">③ راجع وحسّن</button></div>
+        </details>
+        <details id="plotCard" class="card" hidden open>
+          <summary>📖 كتاب القصة (عدّله قبل الكتابة)</summary>
+          <label>العنوان</label><input id="bTitle">
+          <label>الفكرة في جملة</label><textarea id="bLogline" rows="2"></textarea>
+          <label>الجملة الأولى (الخطّاف)</label><textarea id="bHook" rows="2"></textarea>
+          <label>الرهان: ما الذي سيُخسر</label><input id="bStakes">
+          <label>المفاجأة (يجب أن تعيد تفسير ما سبق)</label><textarea id="bTwist" rows="2"></textarea>
+          <label>الصورة الأخيرة</label><input id="bEnding">
+          <label>النبضات (نبضة في كل سطر)</label><textarea id="bBeats" rows="8"></textarea>
+        </details>
+        <details id="issuesCard" class="card" hidden><summary>🧐 ملاحظات المحرر القاسي</summary><ul id="issuesList"></ul></details>
+      </div>
     </div>
 
     <!-- المشهد -->
@@ -131,6 +138,27 @@
         <label>ضبابية <output id="bgBlurV">0</output>px<input type="range" id="bgBlur" min="0" max="20" value="0"></label>
       </div>
       <label class="chk"><input type="checkbox" id="chkDesk" checked> مكتب + مايك + كوب أمام الشخصية</label>
+      <hr class="sep">
+
+      <h3>✏️ نصوص على المسرح</h3>
+      <div id="txtList" class="txtlist"></div>
+      <button id="txtAdd" type="button" class="primary">＋ إضافة نص</button>
+      <div id="txtCtl" hidden>
+        <label>النص</label><input id="txtVal" maxlength="60">
+        <div class="row2"><label>اللون <input type="color" id="txtColor" value="#ff5bd8"></label><label>الخط <select id="txtFont"><option value="Cairo">Cairo</option><option value="Tajawal">Tajawal</option><option value="Lalezar">Lalezar</option><option value="Reem Kufi">Reem Kufi</option><option value="Changa">Changa</option><option value="Arial Black">Arial Black</option></select></label></div>
+        <label>الحجم <output id="txtSizeV">6</output><input type="range" id="txtSize" min="2" max="18" step=".5" value="6"></label>
+        <div class="row2"><label>أفقي <input type="range" id="txtX" min="0" max="100" value="50"></label><label>عمودي <input type="range" id="txtY" min="0" max="100" value="10"></label></div>
+        <label class="chk"><input type="checkbox" id="txtGlow" checked> توهج نيون</label>
+        <button id="txtDel" type="button" class="danger">حذف النص</button>
+      </div>
+      <h3>💬 الترجمة أسفل الشاشة</h3>
+      <label class="chk"><input type="checkbox" id="capOn" checked> إظهار الجملة الحالية كترجمة</label>
+      <div class="row2"><label>الحجم <input type="range" id="capSize" min="2" max="9" step=".25" value="4.2"></label><label>الارتفاع <input type="range" id="capY" min="40" max="96" value="82"></label></div>
+      <div class="row2"><label>لون النص <input type="color" id="capColor" value="#ffffff"></label><label>لون التمييز <input type="color" id="capHl" value="#ffd34d"></label></div>
+      <label class="chk"><input type="checkbox" id="capBox" checked> خلفية شفافة خلف الترجمة</label>
+    
+      <hr class="sep">
+      <label class="chk"><input type="checkbox" id="chkGuides"> إظهار الحدود الآمنة (لتجنب تغطية واجهة تيك توك)</label>
       <p class="hint">المقاس يُغيَّر من القائمة أعلى الصفحة. الخلفية الخضراء مفيدة لو ستدمج الفيديو في برنامج مونتاج.</p>
     </div>
 
@@ -168,33 +196,25 @@
       <div class="steps"><button id="pkExport" type="button">⬇ تصدير الشخصية</button><button id="pkImport" type="button">⬆ استيراد حزمة</button></div><input type="file" id="pkFile" accept=".json,application/json" hidden>
     </div>
 
-    <!-- النصوص -->
-    <div class="pane" data-pane="texts">
-      <h3>نصوص على المسرح</h3>
-      <div id="txtList" class="txtlist"></div>
-      <button id="txtAdd" type="button" class="primary">＋ إضافة نص</button>
-      <div id="txtCtl" hidden>
-        <label>النص</label><input id="txtVal" maxlength="60">
-        <div class="row2"><label>اللون <input type="color" id="txtColor" value="#ff5bd8"></label><label>الخط <select id="txtFont"><option value="Cairo">Cairo</option><option value="Tajawal">Tajawal</option><option value="Lalezar">Lalezar</option><option value="Reem Kufi">Reem Kufi</option><option value="Changa">Changa</option><option value="Arial Black">Arial Black</option></select></label></div>
-        <label>الحجم <output id="txtSizeV">6</output><input type="range" id="txtSize" min="2" max="18" step=".5" value="6"></label>
-        <div class="row2"><label>أفقي <input type="range" id="txtX" min="0" max="100" value="50"></label><label>عمودي <input type="range" id="txtY" min="0" max="100" value="10"></label></div>
-        <label class="chk"><input type="checkbox" id="txtGlow" checked> توهج نيون</label>
-        <button id="txtDel" type="button" class="danger">حذف النص</button>
-      </div>
-      <h3>الترجمة أسفل الشاشة</h3>
-      <label class="chk"><input type="checkbox" id="capOn" checked> إظهار الجملة الحالية كترجمة</label>
-      <div class="row2"><label>الحجم <input type="range" id="capSize" min="2" max="9" step=".25" value="4.2"></label><label>الارتفاع <input type="range" id="capY" min="40" max="96" value="82"></label></div>
-      <div class="row2"><label>لون النص <input type="color" id="capColor" value="#ffffff"></label><label>لون التمييز <input type="color" id="capHl" value="#ffd34d"></label></div>
-      <label class="chk"><input type="checkbox" id="capBox" checked> خلفية شفافة خلف الترجمة</label>
-    </div>
-
     <!-- الصوت -->
     <div class="pane" data-pane="voice">
       <div id="voiceInfo" class="banner"></div>
-      <label for="voiceSel">الصوت</label><select id="voiceSel"></select>
+      <label for="voiceGroup">1) اللغة أو اللهجة</label><select id="voiceGroup"></select>
+      <label for="voiceSel">2) الصوت</label><select id="voiceSel"></select>
+      <button id="voiceTest" type="button" class="primary big">🔊 جرّب الصوت</button>
       <label>سرعة الكلام <output id="rateV">1.00</output>×<input type="range" id="rate" min="0.7" max="1.3" step="0.05" value="1"></label>
-      <button id="voiceTest" type="button" class="primary">🔊 جرّب الصوت</button>
-      <p class="hint">لا توجد أصوات «ها ها» أو «آآه» مصطنعة. التعبير يأتي من وجه الشخصية وجسمها، والصوت يبقى طبيعياً بتغيّر بسيط في الإيقاع حسب الانفعال.</p>
+      <p class="hint">هذا هو الصوت الافتراضي لكل الفيديو. لتغيير الصوت عند نقطة معيّنة، اضغط المقطع في الخط الزمني أسفل المسرح واختر له صوتاً.</p>
+      <p class="hint">لا توجد أصوات «ها ها» أو «آآه» مصطنعة. التعبير يأتي من وجه الشخصية وجسمها، والصوت يتلوّن قليلاً حسب الانفعال.</p>
+    </div>
+
+    <!-- تصدير -->
+    <div class="pane" data-pane="export">
+      <h3>🎬 تنزيل الفيديو</h3>
+      <div id="expInfo" class="banner"></div>
+      <label for="expQ">الجودة</label>
+      <select id="expQ"><option value="540">540p (سريع وخفيف)</option><option value="720" selected>720p (موصى به)</option><option value="1080">1080p (أعلى جودة)</option></select>
+      <button id="tExport" type="button" class="primary big">🎬 ابدأ التصدير</button>
+      <ul class="hint tips"><li>يُسجَّل الفيديو أثناء تشغيله، فمدة التصدير تساوي مدة الفيديو.</li><li>أبقِ هذه الصفحة ظاهرة ولا تغلق الشاشة حتى ينتهي.</li><li>الصوت يدخل الفيديو فقط مع الأصوات العصبية (🎙). صوت المتصفح ينتج فيديو صامتاً.</li><li>المقاس يتبع القائمة أعلى الصفحة (9:16 لتيك توك).</li></ul>
     </div>
 
     <!-- بث -->

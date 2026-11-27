@@ -210,7 +210,7 @@ bind('pkFile', async el => {
 }, 'change');
 
 /* ---------- النصوص والترجمة ---------- */
-function chooseText(id) { selText = id; renderTextList(); renderTexts(); syncTextCtl(); openTab('texts'); }
+function chooseText(id) { selText = id; renderTextList(); renderTexts(); syncTextCtl(); openTab('scene'); }
 function renderTextList() {
   const l = $('txtList'); l.replaceChildren();
   for (const t of P.texts) { const b = document.createElement('button'); b.type = 'button'; b.className = t.id === selText ? 'on' : ''; b.textContent = t.text || '(فارغ)'; b.onclick = () => chooseText(t.id); l.append(b); }
@@ -241,16 +241,23 @@ function fillVoiceSelect(sel, withDefault, cur) {
   sel.value = list.some(v => v.key === cur) || (withDefault && !cur) ? (cur || '') : (withDefault ? '' : (list[0] ? list[0].key : ''));
   return list;
 }
+function fillVoiceChoices() {
+  const list = Voice.listVoices(), gsel = $('voiceGroup'), vsel = $('voiceSel'), groups = [...new Set(list.map(v => v.group))];
+  gsel.replaceChildren(...groups.map(g => new Option(g, g)));
+  const curV = list.find(v => v.key === P.voice.key) || list[0];
+  if (!curV) { vsel.replaceChildren(new Option('لا توجد أصوات (ستعمل الحركة بدون صوت)', '')); return list; }
+  gsel.value = curV.group; fillGroupVoices(list); vsel.value = curV.key; P.voice.key = vsel.value; return list;
+}
+function fillGroupVoices(list) { list = list || Voice.listVoices(); const g = $('voiceGroup').value; $('voiceSel').replaceChildren(...list.filter(v => v.group === g).map(v => new Option(v.label, v.key))); }
 function refreshVoiceList() {
-  const sel = $('voiceSel'), list = fillVoiceSelect(sel, false, P.voice.key);
-  if (!list.length) { sel.replaceChildren(new Option('لا توجد أصوات (ستعمل الحركة بدون صوت)', '')); }
-  else P.voice.key = sel.value;
+  const list = fillVoiceChoices();
   if (typeof showSegEditor === 'function') showSegEditor();
   const info = $('voiceInfo');
-  if (Voice.serverOn) { info.className = 'banner ok'; info.textContent = 'أصوات عصبية متاحة بلهجات عربية كثيرة ولغات أخرى، وصوت المتصفح موجود في آخر القائمة. لو تعذّر وقت التشغيل يرجع تلقائياً لصوت المتصفح.'; }
-  else if (list.length) { info.className = 'banner warn'; info.textContent = 'تستخدم الآن صوت المتصفح، وجودته تعتمد على جهازك. لصوت أطبيعي أكثر فعّل صوتاً عصبياً على الخادم (ELEVENLABS_API_KEY مع ELEVENLABS_VOICE_ID، أو edge-tts).'; }
+  if (Voice.serverOn) { info.className = 'banner ok'; info.textContent = 'أصوات عصبية متاحة بلهجات عربية كثيرة ولغات أخرى. اختر اللغة/اللهجة ثم الصوت. صوت المتصفح موجود في آخر قائمة اللغات.'; }
+  else if (list.length) { info.className = 'banner warn'; info.textContent = 'الأصوات العصبية غير متاحة الآن، والمتاح فقط أصوات جهازك (جودتها تعتمد على الجهاز). إذا كنت على Render فتأكد أن edge-tts مثبّت في requirements.txt وأن النشر الأخير نجح.'; }
   else { info.className = 'banner warn'; info.textContent = 'جهازك لا يحوي صوتاً عربياً. ثبّت صوتاً عربياً من إعدادات النظام (تحويل النص إلى كلام)، أو فعّل صوت الخادم.'; }
 }
+bind('voiceGroup', () => { fillGroupVoices(); const v = $('voiceSel').value; if (v) { P.voice.key = v; save(); if (typeof showSegEditor === 'function') showSegEditor(); } }, 'change');
 bind('voiceSel', el => { P.voice.key = el.value; save(); }, 'change');
 bind('rate', el => { P.voice.rate = +el.value; $('rateV').textContent = (+el.value).toFixed(2); save(); });
 $('voiceTest').onclick = async () => { Voice.unlock(); Characters.pose('neutral'); Characters.speaking(true); await Voice.speak(Voice.sampleFor(P.voice.key) || 'أهلاً بكم، هذا صوتي في الاستوديو. جرّبوا السرعة التي تناسب القصة.', { voice: P.voice.key, rate: P.voice.rate, onLevel: v => Characters.level(v) }); Characters.speaking(false); };

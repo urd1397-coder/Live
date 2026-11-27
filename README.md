@@ -24,8 +24,10 @@ uvicorn main:app --reload
 
 | المتغير | الغرض |
 |---|---|
-| `ANTHROPIC_API_KEY` | مفتاح Claude (يُفضَّل). النموذج الافتراضي `claude-sonnet-5-5`، وغيّره بـ `ANTHROPIC_MODEL` |
+| `GEMINI_API_KEY` | **مجاني**: مفتاح Gemini من aistudio.google.com/apikey (الأولوية الأولى لو وُجد). النموذج `gemini-2.5-flash` مع بدائل تلقائية (`flash-lite`) وإعادة محاولة عند حد الاستخدام، ويكتشف النماذج المتاحة تلقائياً لو تغيّرت الأسماء. غيّره بـ `GEMINI_MODEL` |
+| `ANTHROPIC_API_KEY` | مفتاح Claude (مدفوع). النموذج الافتراضي `claude-sonnet-5-5`، وغيّره بـ `ANTHROPIC_MODEL` |
 | `OPENAI_API_KEY` | بديل. النموذج بـ `OPENAI_MODEL` |
+| `LLM_PROVIDER` | اختياري: `gemini` أو `anthropic` أو `openai` لفرض مزوّد معيّن |
 
 بدون مفتاح يبقى كل شيء يعمل عدا زرّي الكتابة والتحليل الذكي: تقدر تلصق نصاً جاهزاً وتحلله محلياً.
 

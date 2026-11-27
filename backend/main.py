@@ -14,6 +14,7 @@ from collections import OrderedDict
 import json
 import os
 import re
+import time
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -82,12 +83,96 @@ class TtsRequest(BaseModel):
 
 
 # ------------------------------------------------------------------ مزوّد النموذج
+def gemini_key() -> str:
+    return os.getenv('GEMINI_API_KEY') or os.getenv('GOOGLE_API_KEY') or ''
+
+
 def provider() -> Optional[str]:
-    if os.getenv('ANTHROPIC_API_KEY'):
-        return 'anthropic'
-    if os.getenv('OPENAI_API_KEY'):
-        return 'openai'
+    """الأولوية: LLM_PROVIDER إن حُدّد، ثم Gemini (مجاني) ثم Anthropic ثم OpenAI."""
+    have = {'gemini': bool(gemini_key()), 'anthropic': bool(os.getenv('ANTHROPIC_API_KEY')), 'openai': bool(os.getenv('OPENAI_API_KEY'))}
+    pref = os.getenv('LLM_PROVIDER', '').strip().lower()
+    if have.get(pref):
+        return pref
+    for name in ('gemini', 'anthropic', 'openai'):
+        if have[name]:
+            return name
     return None
+
+
+GEMINI_BASE = os.getenv('GEMINI_BASE_URL', 'https://generativelanguage.googleapis.com/v1beta').rstrip('/')
+GEMINI_DEFAULT_MODELS = ['gemini-2.5-flash', 'gemini-2.5-flash-lite']
+_gemini_discovered: List[str] = []
+
+
+def _gemini_discover() -> List[str]:
+    """يسأل Google عن النماذج المتاحة فعلاً لهذا المفتاح (يحمي من تغيّر الأسماء)."""
+    if _gemini_discovered:
+        return _gemini_discovered
+    try:
+        req = urllib.request.Request(GEMINI_BASE + '/models?pageSize=100', headers={'x-goog-api-key': gemini_key()})
+        with urllib.request.urlopen(req, timeout=20) as r:
+            items = json.loads(r.read().decode('utf-8')).get('models', [])
+        names = [m['name'].split('/')[-1] for m in items if 'generateContent' in m.get('supportedGenerationMethods', [])]
+        good = [n for n in names if 'flash' in n and not re.search(r'image|tts|live|audio|embed|thinking|exp|8b', n)]
+        good.sort(key=lambda n: ('lite' in n, [-int(x) if x.isdigit() else 0 for x in re.findall(r'\d+', n)]))
+        _gemini_discovered.extend(good[:4])
+    except Exception:  # noqa: BLE001
+        pass
+    return _gemini_discovered
+
+
+def _gemini_call(system: str, user: str, max_tokens: int, temperature: float, json_mode: bool) -> str:
+    chain = [m for m in [os.getenv('GEMINI_MODEL', '').strip()] + GEMINI_DEFAULT_MODELS if m]
+    chain = list(dict.fromkeys(chain))
+    body: Dict[str, Any] = {
+        'systemInstruction': {'parts': [{'text': system}]},
+        'contents': [{'role': 'user', 'parts': [{'text': user}]}],
+        'generationConfig': {'temperature': min(temperature, 1.2), 'maxOutputTokens': min(16000, max(8192, max_tokens * 3))},
+        'safetySettings': [{'category': c, 'threshold': 'BLOCK_ONLY_HIGH'} for c in (
+            'HARM_CATEGORY_HARASSMENT', 'HARM_CATEGORY_HATE_SPEECH', 'HARM_CATEGORY_SEXUALLY_EXPLICIT', 'HARM_CATEGORY_DANGEROUS_CONTENT')]}
+    if json_mode:
+        body['generationConfig']['responseMimeType'] = 'application/json'
+    last = 'unknown'
+    tried = set()
+    i = 0
+    while i < len(chain):
+        model = chain[i]; i += 1
+        if model in tried:
+            continue
+        tried.add(model)
+        for attempt in range(2):
+            try:
+                data = _post_json(f'{GEMINI_BASE}/models/{model}:generateContent', {'x-goog-api-key': gemini_key()}, body, 110)
+            except urllib.error.HTTPError as exc:
+                detail = ''
+                try:
+                    detail = json.loads(exc.read().decode('utf-8')).get('error', {}).get('message', '')
+                except Exception:  # noqa: BLE001
+                    pass
+                last = f'{exc.code} {detail[:140]}'
+                if exc.code in (400, 401, 403) and re.search(r'api key|permission|unauthenticated', detail, re.I):
+                    raise HTTPException(502, 'مفتاح Gemini مرفوض. أنشئ مفتاحاً جديداً من aistudio.google.com/apikey وضعه في GEMINI_API_KEY على Render.')
+                if exc.code == 404:
+                    chain.extend(_gemini_discover())       # الاسم لم يعد متاحاً: نجرّب ما هو متاح فعلاً
+                    break
+                if exc.code in (429, 500, 503) and attempt == 0:
+                    time.sleep(3)
+                    continue
+                break                                       # ننتقل للنموذج التالي
+            except (urllib.error.URLError, TimeoutError):
+                last = 'network'
+                break
+            cand = (data.get('candidates') or [{}])[0]
+            text = ''.join(p.get('text', '') for p in (cand.get('content') or {}).get('parts', []) if not p.get('thought'))
+            if text.strip():
+                return text.strip()
+            last = 'empty:' + str(cand.get('finishReason'))
+            break
+    if last.startswith('429'):
+        raise HTTPException(502, 'وصلت للحد المجاني من Gemini (طلبات في الدقيقة أو في اليوم). انتظر دقيقة ثم أعد المحاولة، أو جرّب غداً.')
+    if last.startswith('empty'):
+        raise HTTPException(502, 'Gemini لم يُرجع نصاً (' + last + '). غيّر الموضوع قليلاً أو أعد المحاولة.')
+    raise HTTPException(502, 'تعذّر الحصول على رد من Gemini (' + last + '). أعد المحاولة بعد قليل.')
 
 
 def _post_json(url: str, headers: Dict[str, str], body: Dict[str, Any], timeout: int = 100) -> Dict[str, Any]:
@@ -97,10 +182,12 @@ def _post_json(url: str, headers: Dict[str, str], body: Dict[str, Any], timeout:
         return json.loads(resp.read().decode('utf-8'))
 
 
-def call_llm(system: str, user: str, max_tokens: int = 3500, temperature: float = 0.9) -> str:
+def call_llm(system: str, user: str, max_tokens: int = 3500, temperature: float = 0.9, json_mode: bool = False) -> str:
     prov = provider()
     if not prov:
-        raise HTTPException(503, 'الكتابة بالذكاء الاصطناعي تحتاج مفتاحاً: أضف ANTHROPIC_API_KEY (أو OPENAI_API_KEY) في متغيرات البيئة على Render ثم أعد النشر.')
+        raise HTTPException(503, 'الكتابة بالذكاء الاصطناعي تحتاج مفتاحاً: أضف GEMINI_API_KEY (مجاني من aistudio.google.com/apikey) أو ANTHROPIC_API_KEY (أو OPENAI_API_KEY) في متغيرات البيئة على Render ثم أعد النشر.')
+    if prov == 'gemini':
+        return _gemini_call(system, user, max_tokens, temperature, json_mode)
     try:
         if prov == 'anthropic':
             base = os.getenv('ANTHROPIC_BASE_URL', 'https://api.anthropic.com').rstrip('/')
@@ -166,11 +253,11 @@ def extract_json(text: str) -> Any:
 
 
 def llm_json(system: str, user: str, max_tokens: int = 3500, temperature: float = 0.9) -> Any:
-    raw = call_llm(system, user, max_tokens, temperature)
+    raw = call_llm(system, user, max_tokens, temperature, True)
     try:
         return extract_json(raw)
     except ValueError:
-        fixed = call_llm('أعد المحتوى التالي كـ JSON صالح فقط، بدون أي شرح أو سياج كود، وبدون تغيير المعنى.', raw[:12000], max_tokens, 0)
+        fixed = call_llm('أعد المحتوى التالي كـ JSON صالح فقط، بدون أي شرح أو سياج كود، وبدون تغيير المعنى.', raw[:12000], max_tokens, 0, True)
         try:
             return extract_json(fixed)
         except ValueError:

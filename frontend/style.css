@@ -74,10 +74,10 @@ h3{margin:18px 0 6px;font-size:15px}
 .seg-btns{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}.seg-btns button{padding:7px 10px;font-size:13px}
 
 /* اللوحة */
-.tabs{display:flex;gap:2px;overflow-x:auto;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--panel);z-index:5;scrollbar-width:none}
-.tabs::-webkit-scrollbar{display:none}
-.tabs button{flex:none;padding:11px 12px;background:none;border:0;border-bottom:3px solid transparent;border-radius:0;color:var(--mut);font-size:14px}
-.tabs button.on{color:#fff;border-bottom-color:var(--acc)}
+.tabs{display:grid;grid-template-columns:repeat(6,1fr);border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--panel);z-index:5}
+.tabs button{display:flex;flex-direction:column;align-items:center;gap:1px;padding:8px 2px 7px;background:none;border:0;border-bottom:3px solid transparent;border-radius:0;color:var(--mut);font-size:12px;font-weight:600}
+.tabs button i{font-style:normal;font-size:19px;line-height:1.1}
+.tabs button.on{color:#fff;border-bottom-color:var(--acc);background:#1b1a2e}
 .pane{display:none;padding:12px 14px 40px}.pane.on{display:block}
 .types{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}.types button.on{background:#ececf4;color:#111;border-color:#ececf4;font-weight:700}
 .steps{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:6px;margin:8px 0}.steps button{padding:9px 6px;font-size:13px}
@@ -105,11 +105,13 @@ h3{margin:18px 0 6px;font-size:15px}
 /* الجوال: المسرح ثابت أعلى الصفحة، واللوحة تنزل تحته */
 @media (max-width:900px){
   .shell{display:block;height:auto}
-  .stagecol{position:sticky;top:var(--topbar-h);z-index:40;height:calc(46dvh + 52px)}
+  .stagecol{position:sticky;top:var(--topbar-h);z-index:40;height:calc(40dvh + 52px)}
   .stage-area{padding:6px}
   .timeline{max-height:none;padding:8px 10px}
   .panel{overflow:visible;border-inline-end:0}
-  .tabs{top:calc(var(--topbar-h) + 46dvh + 52px)}
+  .tabs{position:fixed;top:auto;bottom:0;left:0;right:0;z-index:70;border-top:1px solid var(--line);border-bottom:0;padding-bottom:env(safe-area-inset-bottom);box-shadow:0 -6px 18px #0009}
+  .tabs button{border-bottom:0;border-top:3px solid transparent;padding:7px 0 6px}.tabs button.on{border-top-color:var(--acc)}
+  body{padding-bottom:calc(64px + env(safe-area-inset-bottom))}
   .topbar{gap:6px;padding:6px 8px}.brand{font-size:16px}.pill{display:none}
   .projname{max-width:110px;font-size:14px}
   .sel-inline{font-size:0}.sel-inline select{font-size:13px;max-width:96px}
@@ -150,3 +152,10 @@ h3{margin:18px 0 6px;font-size:15px}
 
 .mini{width:auto;padding:7px 8px;font-size:13px}
 .vbadge{font-size:10px;color:#9fe0b4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin:2px 0}
+
+.how{background:#1a2238;border:1px solid #2f4170;border-radius:10px;padding:9px 12px;font-size:13px;line-height:1.8;margin-bottom:10px}
+.seg2{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:12px}.seg2 .type{padding:11px 6px;font-weight:700}
+button.big{display:block;width:100%;padding:13px 14px;font-size:16px;font-weight:800;margin:12px 0 8px}
+.sep{border:0;border-top:1px solid var(--line);margin:18px 0 6px}
+.tips{padding-inline-start:20px;margin:12px 0}.tips li{margin:5px 0}
+.t-status{white-space:normal;line-height:1.35;max-height:2.8em;overflow:hidden}
