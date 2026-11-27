@@ -4,8 +4,8 @@ let selSeg = -1, player = { run: 0, playing: false, idx: 0, t0: 0 }, beatTimer =
 const LEAD = { shock: 260, scream: 220, laugh: 180, angry: 120, scared: 140 };   // يتفاعل بوجهه قبل أن ينطق
 const segs = () => P.script.segments;
 const fmt = s => Math.floor(s / 60) + ':' + String(Math.floor(s % 60)).padStart(2, '0');
-const norm = s => ({ text: String(s.text || '').trim(), emotion: Characters.EMOS.includes(s.emotion) ? s.emotion : 'neutral', intensity: clamp(+s.intensity || .5, 0, 1), pause_ms: clamp(Number.isFinite(+s.pause_ms) ? +s.pause_ms : 280, 0, 2500), emphasis: Array.isArray(s.emphasis) ? s.emphasis.filter(w => typeof w === 'string') : [], forced: !!s.forced });
-const voiceOpts = s => ({ voice: P.voice.key, rate: P.voice.rate, emotion: s.emotion, intensity: s.intensity });
+const norm = s => ({ text: String(s.text || '').trim(), emotion: Characters.EMOS.includes(s.emotion) ? s.emotion : 'neutral', intensity: clamp(+s.intensity || .5, 0, 1), pause_ms: clamp(Number.isFinite(+s.pause_ms) ? +s.pause_ms : 280, 0, 2500), emphasis: Array.isArray(s.emphasis) ? s.emphasis.filter(w => typeof w === 'string') : [], forced: !!s.forced, voice: typeof s.voice === 'string' ? s.voice : '' });
+const voiceOpts = s => ({ voice: s.voice || P.voice.key, rate: P.voice.rate, emotion: s.emotion, intensity: s.intensity });
 
 /* ---------- الخط الزمني ---------- */
 function renderTimeline() {
@@ -17,7 +17,7 @@ function renderTimeline() {
     const b = document.createElement('button'); b.type = 'button'; b.className = 'blk' + (i === selSeg ? ' sel' : '') + (player.playing && i === player.idx ? ' now' : ''); b.dataset.e = s.emotion; b.dataset.i = i;
     b.style.width = Math.max(96, Math.round(dur * 46)) + 'px';
     const em = document.createElement('div'); em.className = 'em'; em.append(EMO_META[s.emotion][0] + ' ' + EMO_META[s.emotion][1]); const n = document.createElement('i'); n.textContent = i + 1; em.append(n);
-    const t = document.createElement('div'); t.className = 't2'; t.textContent = s.text; b.append(em, t); tr.append(b);
+    const t = document.createElement('div'); t.className = 't2'; t.textContent = s.text; if (s.voice) { const vv = Voice.listVoices().find(x => x.key === s.voice); const vb = document.createElement('div'); vb.className = 'vbadge'; vb.textContent = '🎙 ' + (vv ? vv.label : 'صوت مخصص'); b.append(em, vb, t); } else b.append(em, t); tr.append(b);
   });
   $('tlInfo').textContent = list.length ? `${list.length} مقطع · نحو ${fmt(total)}` : '';
   showSegEditor();
@@ -30,13 +30,15 @@ function selectSeg(i, o = {}) {
 function showSegEditor() {
   const s = segs()[selSeg], box = $('segEditor'); box.hidden = !s; if (!s) return;
   if (document.activeElement !== $('segText')) $('segText').value = s.text;
-  $('segEmo').value = s.emotion; $('segInt').value = Math.round(s.intensity * 100); $('segIntV').textContent = $('segInt').value; $('segPause').value = s.pause_ms; $('segPauseV').textContent = s.pause_ms;
+  fillVoiceSelect($('segVoice'), true, s.voice || ''); $('segEmo').value = s.emotion; $('segInt').value = Math.round(s.intensity * 100); $('segIntV').textContent = $('segInt').value; $('segPause').value = s.pause_ms; $('segPauseV').textContent = s.pause_ms;
 }
 Characters.EMOS.forEach(e => $('segEmo').add(new Option(EMO_META[e][0] + ' ' + EMO_META[e][1], e)));
 const cur = () => segs()[selSeg];
 const touch = (full) => { if (full) renderTimeline(); else { const b = document.querySelectorAll('.blk')[selSeg], s = cur(); if (b && s) { b.querySelector('.t2').textContent = s.text; } } syncScriptText(); save(); };
 bind('segText', el => { const s = cur(); if (s) { s.text = el.value; s.forced = s.forced; touch(false); } });
 bind('segEmo', el => { const s = cur(); if (s) { s.emotion = el.value; s.forced = true; touch(true); Characters.pose(s.emotion, s.intensity); Characters.fx(); } }, 'change');
+bind('segVoice', el => { const s = cur(); if (s) { s.voice = el.value; touch(true); setStatus(el.value ? 'تغيّر الصوت عند هذا المقطع' : 'عاد للصوت الافتراضي'); } }, 'change');
+$('segVoiceFrom').onclick = () => { const s = cur(); if (!s) return; const v = s.voice || ''; segs().slice(selSeg).forEach(x => { x.voice = v; }); touch(true); setStatus(v ? 'طُبّق هذا الصوت من هنا حتى نهاية الفيديو' : 'عاد كل ما بعد هذا المقطع للصوت الافتراضي'); };
 bind('segInt', el => { const s = cur(); if (s) { s.intensity = el.value / 100; $('segIntV').textContent = el.value; save(); } });
 bind('segPause', el => { const s = cur(); if (s) { s.pause_ms = +el.value; $('segPauseV').textContent = el.value; save(); } });
 $('segPreview').onclick = () => { const s = cur(); if (!s) return; Characters.pose(s.emotion, s.intensity); Characters.fx(); setCaption(s.text, s.emphasis); setTimeout(() => { if (!player.playing) { Characters.pose('neutral'); setCaption('', []); } }, 2200); };
@@ -66,9 +68,10 @@ async function playFrom(i) {
     if (id !== player.run) return; player.idx = k; player.segT0 = performance.now(); selectSeg(k, { scroll: true });
     const s = list[k], nxt = list[k + 1]; setStatus(`المقطع ${k + 1} من ${list.length} · ${EMO_META[s.emotion][0]} ${EMO_META[s.emotion][1]}`);
     setCaption(s.text, s.emphasis); Characters.pose(s.emotion, s.intensity); if (s.emotion !== 'neutral' && s.intensity > .55) Characters.fx();
+    Voice.prefetch(s.text, voiceOpts(s)); if (nxt) Voice.prefetch(nxt.text, voiceOpts(nxt));   // نبدأ توليد الصوت قبل مهلة التفاعل كي لا يتأخر
     if (LEAD[s.emotion]) { await wait(LEAD[s.emotion]); if (id !== player.run) return; }
     Characters.speaking(true); stopBeats(); Characters.beat(); beatTimer = setInterval(Characters.beat, 800);
-    if (nxt) Voice.prefetch(nxt.text, voiceOpts(nxt));
+    if (list[k + 2]) Voice.prefetch(list[k + 2].text, voiceOpts(list[k + 2]));
     await Voice.speak(s.text, { ...voiceOpts(s), onLevel: v => Characters.level(v) });
     if (id !== player.run) return; Characters.speaking(false); stopBeats(); Characters.rest();
     await wait(s.pause_ms); if (id !== player.run) return;

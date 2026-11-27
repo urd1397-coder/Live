@@ -10,6 +10,7 @@
   ANTHROPIC_API_KEY (+ ANTHROPIC_MODEL, ANTHROPIC_BASE_URL)  أو  OPENAI_API_KEY (+ OPENAI_MODEL)
 """
 import io
+from collections import OrderedDict
 import json
 import os
 import re
@@ -77,6 +78,7 @@ class TtsRequest(BaseModel):
     voice: str = Field(default='', max_length=80)
     rate: float = Field(default=1.0, ge=0.5, le=1.6)
     emotion: str = Field(default='neutral', max_length=20)
+    intensity: float = Field(default=0.6, ge=0.0, le=1.0)
 
 
 # ------------------------------------------------------------------ مزوّد النموذج
@@ -274,7 +276,8 @@ def get_state():
         tts.append('edge')
     except Exception:  # noqa: BLE001
         pass
-    return {**state, 'modes': MODES, 'ai_provider': provider(), 'ai_ready': bool(provider()), 'tts': tts}
+    return {**state, 'modes': MODES, 'ai_provider': provider(), 'ai_ready': bool(provider()), 'tts': tts,
+            'voices': voice_catalog(tts)}
 
 
 @app.post('/api/mode')
@@ -356,8 +359,80 @@ def mock_chat(payload: ChatRequest):
 
 
 # ------------------------------------------------------------------ الصوت
+# اسم قصير -> صوت edge (للتوافق مع المشاريع القديمة)
 EDGE_VOICES = {'male': 'ar-SA-HamedNeural', 'female': 'ar-SA-ZariyahNeural', 'eg-male': 'ar-EG-ShakirNeural',
                'eg-female': 'ar-EG-SalmaNeural', 'sy-male': 'ar-SY-LaithNeural', 'ae-male': 'ar-AE-HamdanNeural'}
+
+# (مجموعة، نص تجربة، [(المعرّف، الاسم)])
+_AR_SAMPLE = 'أهلاً بكم، هذا صوتي في الاستوديو. جرّبوا السرعة التي تناسب القصة.'
+VOICE_GROUPS = [
+    ('العربية · الخليج', _AR_SAMPLE, [
+        ('ar-SA-HamedNeural', 'سعودي · ذكر'), ('ar-SA-ZariyahNeural', 'سعودية · أنثى'),
+        ('ar-AE-HamdanNeural', 'إماراتي · ذكر'), ('ar-AE-FatimaNeural', 'إماراتية · أنثى'),
+        ('ar-KW-FahedNeural', 'كويتي · ذكر'), ('ar-KW-NouraNeural', 'كويتية · أنثى'),
+        ('ar-QA-MoazNeural', 'قطري · ذكر'), ('ar-QA-AmalNeural', 'قطرية · أنثى'),
+        ('ar-BH-AliNeural', 'بحريني · ذكر'), ('ar-BH-LailaNeural', 'بحرينية · أنثى'),
+        ('ar-OM-AbdullahNeural', 'عماني · ذكر'), ('ar-OM-AyshaNeural', 'عمانية · أنثى'),
+        ('ar-YE-SalehNeural', 'يمني · ذكر'), ('ar-YE-MaryamNeural', 'يمنية · أنثى')]),
+    ('العربية · الشام والعراق', _AR_SAMPLE, [
+        ('ar-SY-LaithNeural', 'سوري · ذكر'), ('ar-SY-AmanyNeural', 'سورية · أنثى'),
+        ('ar-LB-RamiNeural', 'لبناني · ذكر'), ('ar-LB-LaylaNeural', 'لبنانية · أنثى'),
+        ('ar-JO-TaimNeural', 'أردني · ذكر'), ('ar-JO-SanaNeural', 'أردنية · أنثى'),
+        ('ar-IQ-BasselNeural', 'عراقي · ذكر'), ('ar-IQ-RanaNeural', 'عراقية · أنثى')]),
+    ('العربية · مصر والمغرب العربي', _AR_SAMPLE, [
+        ('ar-EG-ShakirNeural', 'مصري · ذكر'), ('ar-EG-SalmaNeural', 'مصرية · أنثى'),
+        ('ar-LY-OmarNeural', 'ليبي · ذكر'), ('ar-LY-ImanNeural', 'ليبية · أنثى'),
+        ('ar-TN-HediNeural', 'تونسي · ذكر'), ('ar-TN-ReemNeural', 'تونسية · أنثى'),
+        ('ar-DZ-IsmaelNeural', 'جزائري · ذكر'), ('ar-DZ-AminaNeural', 'جزائرية · أنثى'),
+        ('ar-MA-JamalNeural', 'مغربي · ذكر'), ('ar-MA-MounaNeural', 'مغربية · أنثى')]),
+    ('English', 'Hello everyone, this is my voice in the studio. Let us tell a story.', [
+        ('en-US-GuyNeural', 'US · male'), ('en-US-AriaNeural', 'US · female'),
+        ('en-GB-RyanNeural', 'UK · male'), ('en-GB-SoniaNeural', 'UK · female')]),
+    ('Français', 'Bonjour à tous, voici ma voix dans le studio. Racontons une histoire.', [
+        ('fr-FR-HenriNeural', 'homme'), ('fr-FR-DeniseNeural', 'femme')]),
+    ('Español', 'Hola a todos, esta es mi voz en el estudio. Contemos una historia.', [
+        ('es-ES-AlvaroNeural', 'hombre'), ('es-ES-ElviraNeural', 'mujer')]),
+    ('Deutsch', 'Hallo zusammen, das ist meine Stimme im Studio. Erzählen wir eine Geschichte.', [
+        ('de-DE-ConradNeural', 'Mann'), ('de-DE-KatjaNeural', 'Frau')]),
+    ('Türkçe', 'Herkese merhaba, bu stüdyodaki sesim. Bir hikâye anlatalım.', [
+        ('tr-TR-AhmetNeural', 'erkek'), ('tr-TR-EmelNeural', 'kadın')]),
+    ('اردو', 'سب کو سلام، یہ اسٹوڈیو میں میری آواز ہے۔ آئیے کہانی سنائیں۔', [
+        ('ur-PK-AsadNeural', 'مرد'), ('ur-PK-UzmaNeural', 'عورت')]),
+    ('فارسی', 'سلام به همه، این صدای من در استودیو است. بیایید یک داستان تعریف کنیم.', [
+        ('fa-IR-FaridNeural', 'مرد'), ('fa-IR-DilaraNeural', 'زن')]),
+    ('हिन्दी', 'सभी को नमस्कार, यह स्टूडियो में मेरी आवाज़ है। चलिए एक कहानी सुनाते हैं।', [
+        ('hi-IN-MadhurNeural', 'पुरुष'), ('hi-IN-SwaraNeural', 'महिला')]),
+    ('Bahasa Indonesia', 'Halo semuanya, ini suara saya di studio. Mari kita bercerita.', [
+        ('id-ID-ArdiNeural', 'pria'), ('id-ID-GadisNeural', 'wanita')]),
+    ('Русский', 'Всем привет, это мой голос в студии. Давайте расскажем историю.', [
+        ('ru-RU-DmitryNeural', 'мужской'), ('ru-RU-SvetlanaNeural', 'женский')]),
+    ('Italiano', 'Ciao a tutti, questa è la mia voce nello studio. Raccontiamo una storia.', [
+        ('it-IT-DiegoNeural', 'uomo'), ('it-IT-ElsaNeural', 'donna')]),
+    ('Português', 'Olá a todos, esta é a minha voz no estúdio. Vamos contar uma história.', [
+        ('pt-BR-AntonioNeural', 'homem'), ('pt-BR-FranciscaNeural', 'mulher')]),
+    ('日本語 / 한국어 / 中文', '大家好，这是我在录音室里的声音。', [
+        ('ja-JP-KeitaNeural', '日本語 · 男性'), ('ja-JP-NanamiNeural', '日本語 · 女性'),
+        ('ko-KR-InJoonNeural', '한국어 · 남성'), ('ko-KR-SunHiNeural', '한국어 · 여성'),
+        ('zh-CN-YunxiNeural', '中文 · 男'), ('zh-CN-XiaoxiaoNeural', '中文 · 女')]),
+]
+_VOICE_RE = re.compile(r'^[a-z]{2,3}-[A-Z]{2}-[A-Za-z]+Neural$')
+
+
+def voice_catalog(tts: List[str]) -> List[Dict[str, str]]:
+    out: List[Dict[str, str]] = []
+    if 'elevenlabs' in tts:
+        out.append({'key': 'eleven', 'label': 'صوتك في ElevenLabs', 'group': 'ElevenLabs', 'sample': _AR_SAMPLE})
+    if 'edge' in tts:
+        for group, sample, voices in VOICE_GROUPS:
+            for key, label in voices:
+                out.append({'key': key, 'label': label, 'group': group, 'sample': sample})
+    return out
+
+
+# تلوين الأداء: (تغيير السرعة %، تغيير الطبقة Hz) عند شدة كاملة. تغييرات صغيرة كي يبقى الصوت طبيعياً
+EMO_PROSODY = {'excited': (10, 6), 'sad': (-14, -6), 'angry': (8, -2), 'scared': (12, 8), 'shock': (6, 6), 'think': (-10, -2),
+               'serious': (-6, -5), 'laugh': (6, 4), 'scream': (12, 8), 'sassy': (-4, 3), 'mocking': (3, 5), 'neutral': (0, 0)}
+_tts_cache: 'OrderedDict[tuple, bytes]' = OrderedDict()
 
 
 def _http_bytes(url: str, headers: Dict[str, str], body: Dict[str, Any]) -> bytes:
@@ -370,17 +445,18 @@ def _http_bytes(url: str, headers: Dict[str, str], body: Dict[str, Any]) -> byte
 @app.post('/api/tts')
 async def tts(req: TtsRequest):
     text = re.sub(r'\s+', ' ', req.text).strip()
+    use_default = req.voice in ('', 'eleven')
     try:
-        if os.getenv('ELEVENLABS_API_KEY') and os.getenv('ELEVENLABS_VOICE_ID'):
+        if use_default and os.getenv('ELEVENLABS_API_KEY') and os.getenv('ELEVENLABS_VOICE_ID'):
             audio = _http_bytes(
                 f"https://api.elevenlabs.io/v1/text-to-speech/{os.environ['ELEVENLABS_VOICE_ID']}?output_format=mp3_44100_128",
                 {'xi-api-key': os.environ['ELEVENLABS_API_KEY']},
                 {'text': text, 'model_id': os.getenv('ELEVENLABS_MODEL', 'eleven_multilingual_v2'),
                  'voice_settings': {'stability': 0.45, 'similarity_boost': 0.8, 'style': 0.25}})
             return Response(audio, media_type='audio/mpeg')
-        if os.getenv('OPENAI_API_KEY') and os.getenv('TTS_PROVIDER', '') == 'openai':
+        if req.voice == '' and os.getenv('OPENAI_API_KEY') and os.getenv('TTS_PROVIDER', '') == 'openai':
             audio = _http_bytes('https://api.openai.com/v1/audio/speech', {'Authorization': 'Bearer ' + os.environ['OPENAI_API_KEY']},
-                                {'model': os.getenv('OPENAI_TTS_MODEL', 'gpt-4o-mini-tts'), 'voice': req.voice or 'onyx', 'input': text,
+                                {'model': os.getenv('OPENAI_TTS_MODEL', 'gpt-4o-mini-tts'), 'voice': 'onyx', 'input': text,
                                  'speed': req.rate, 'response_format': 'mp3',
                                  'instructions': 'تحدث بالعربية بأسلوب راوٍ طبيعي هادئ، بدون مبالغة تمثيلية.'})
             return Response(audio, media_type='audio/mpeg')
@@ -388,14 +464,22 @@ async def tts(req: TtsRequest):
             import edge_tts
         except Exception:  # noqa: BLE001
             raise HTTPException(501, 'لا يوجد مزوّد صوت على الخادم. سيُستخدم صوت المتصفح.')
-        voice = EDGE_VOICES.get(req.voice, req.voice if req.voice.startswith('ar-') else EDGE_VOICES['male'])
-        pct = int(round((req.rate - 1) * 100))
+        voice = EDGE_VOICES.get(req.voice) or (req.voice if _VOICE_RE.match(req.voice) else EDGE_VOICES['male'])
+        dr, dp = EMO_PROSODY.get(req.emotion, (0, 0)); k = 0.4 + 0.6 * req.intensity
+        pct = int(round((req.rate - 1) * 100 + dr * k)); hz = int(round(dp * k))
+        key = (text, voice, pct, hz)
+        if key in _tts_cache:
+            _tts_cache.move_to_end(key)
+            return Response(_tts_cache[key], media_type='audio/mpeg')
         buf = io.BytesIO()
-        async for chunk in edge_tts.Communicate(text, voice, rate=f'{pct:+d}%').stream():
+        async for chunk in edge_tts.Communicate(text, voice, rate=f'{pct:+d}%', pitch=f'{hz:+d}Hz').stream():
             if chunk['type'] == 'audio':
                 buf.write(chunk['data'])
         if not buf.getvalue():
             raise HTTPException(502, 'لم يرجع مزوّد الصوت أي صوت.')
+        _tts_cache[key] = buf.getvalue()
+        while len(_tts_cache) > 120:
+            _tts_cache.popitem(last=False)
         return Response(buf.getvalue(), media_type='audio/mpeg')
     except HTTPException:
         raise

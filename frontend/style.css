@@ -149,3 +149,4 @@ h3{margin:18px 0 6px;font-size:15px}
 @keyframes tearfall{0%{transform:translateY(0);opacity:1}100%{transform:translateY(46px);opacity:0}}
 
 .mini{width:auto;padding:7px 8px;font-size:13px}
+.vbadge{font-size:10px;color:#9fe0b4;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin:2px 0}

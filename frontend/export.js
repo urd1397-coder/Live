@@ -87,7 +87,7 @@ const Exporter = (() => {
       if (window.MediaRecorder && MediaRecorder.isTypeSupported(m)) return { m, ext };
     return null;
   }
-  const serverVoice = () => Voice.serverOn && (!P.voice.key || P.voice.key.startsWith('s:'));
+  const serverVoice = () => Voice.serverOn && [P.voice.key, ...P.script.segments.map(x => x.voice)].filter((v, i) => i === 0 || v).every(v => !v || v.startsWith('s:'));
 
   async function run(shortSide) {
     if (running) return; if (!segs().length) { setStatus('لا يوجد نص لتصديره'); return; }

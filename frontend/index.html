@@ -53,11 +53,12 @@
       <textarea id="segText" rows="2" placeholder="نص المقطع"></textarea>
       <div class="seg-grid">
         <label>الانفعال <select id="segEmo"></select></label>
+        <label>الصوت <select id="segVoice"></select></label>
         <label>الشدة <output id="segIntV">50</output>%<input id="segInt" type="range" min="0" max="100" value="50"></label>
         <label>وقفة بعد المقطع <output id="segPauseV">280</output>ms<input id="segPause" type="range" min="0" max="1500" step="20" value="280"></label>
       </div>
       <div class="seg-btns">
-        <button id="segPlay" type="button">▶ من هنا</button><button id="segPreview" type="button">👁 معاينة التعبير</button><button id="segAnalyze" type="button">🔍 حلّل</button>
+        <button id="segPlay" type="button">▶ من هنا</button><button id="segVoiceFrom" type="button" title="يطبّق صوت هذا المقطع على كل المقاطع التي بعده">🎙 هذا الصوت من هنا للنهاية</button><button id="segPreview" type="button">👁 معاينة التعبير</button><button id="segAnalyze" type="button">🔍 حلّل</button>
         <button id="segSplit" type="button">✂ قسّم</button><button id="segUp" type="button">↑</button><button id="segDown" type="button">↓</button><button id="segDel" type="button" class="danger">🗑</button>
       </div>
     </div>

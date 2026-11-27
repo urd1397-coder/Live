@@ -233,19 +233,27 @@ const capUpdate = () => { Object.assign(P.caps, { on: $('capOn').checked, size: 
 ['capOn', 'capSize', 'capY', 'capColor', 'capHl', 'capBox'].forEach(id => bind(id, capUpdate, id === 'capOn' || id === 'capBox' ? 'change' : 'input'));
 
 /* ---------- الصوت ---------- */
+// يملأ قائمة أصوات مجمّعة حسب اللغة/اللهجة. withDefault: خيار «الصوت الافتراضي للمشروع»
+function fillVoiceSelect(sel, withDefault, cur) {
+  sel.replaceChildren(); const list = Voice.listVoices(), groups = new Map();
+  if (withDefault) sel.add(new Option('↩ الصوت الافتراضي للمشروع', ''));
+  list.forEach(v => { if (!groups.has(v.group)) { const g = document.createElement('optgroup'); g.label = v.group; groups.set(v.group, g); sel.append(g); } groups.get(v.group).append(new Option(v.label, v.key)); });
+  sel.value = list.some(v => v.key === cur) || (withDefault && !cur) ? (cur || '') : (withDefault ? '' : (list[0] ? list[0].key : ''));
+  return list;
+}
 function refreshVoiceList() {
-  const sel = $('voiceSel'), list = Voice.listVoices(), cur = P.voice.key; sel.replaceChildren();
-  if (!list.length) sel.add(new Option('لا توجد أصوات عربية على الجهاز (ستعمل الحركة بدون صوت)', ''));
-  list.forEach(v => sel.add(new Option(v.label, v.key)));
-  if (list.length) { sel.value = list.some(v => v.key === cur) ? cur : list[0].key; P.voice.key = sel.value; }
+  const sel = $('voiceSel'), list = fillVoiceSelect(sel, false, P.voice.key);
+  if (!list.length) { sel.replaceChildren(new Option('لا توجد أصوات (ستعمل الحركة بدون صوت)', '')); }
+  else P.voice.key = sel.value;
+  if (typeof showSegEditor === 'function') showSegEditor();
   const info = $('voiceInfo');
-  if (Voice.serverOn) { info.className = 'banner ok'; info.textContent = 'صوت عصبي من الخادم متاح. لو تعذّر وقت التشغيل يرجع تلقائياً لصوت المتصفح.'; }
+  if (Voice.serverOn) { info.className = 'banner ok'; info.textContent = 'أصوات عصبية متاحة بلهجات عربية كثيرة ولغات أخرى، وصوت المتصفح موجود في آخر القائمة. لو تعذّر وقت التشغيل يرجع تلقائياً لصوت المتصفح.'; }
   else if (list.length) { info.className = 'banner warn'; info.textContent = 'تستخدم الآن صوت المتصفح، وجودته تعتمد على جهازك. لصوت أطبيعي أكثر فعّل صوتاً عصبياً على الخادم (ELEVENLABS_API_KEY مع ELEVENLABS_VOICE_ID، أو edge-tts).'; }
   else { info.className = 'banner warn'; info.textContent = 'جهازك لا يحوي صوتاً عربياً. ثبّت صوتاً عربياً من إعدادات النظام (تحويل النص إلى كلام)، أو فعّل صوت الخادم.'; }
 }
 bind('voiceSel', el => { P.voice.key = el.value; save(); }, 'change');
 bind('rate', el => { P.voice.rate = +el.value; $('rateV').textContent = (+el.value).toFixed(2); save(); });
-$('voiceTest').onclick = async () => { Voice.unlock(); Characters.pose('neutral'); Characters.speaking(true); await Voice.speak('أهلاً بكم، هذا صوتي في الاستوديو. جرّبوا السرعة التي تناسب القصة.', { voice: P.voice.key, rate: P.voice.rate, onLevel: v => Characters.level(v) }); Characters.speaking(false); };
+$('voiceTest').onclick = async () => { Voice.unlock(); Characters.pose('neutral'); Characters.speaking(true); await Voice.speak(Voice.sampleFor(P.voice.key) || 'أهلاً بكم، هذا صوتي في الاستوديو. جرّبوا السرعة التي تناسب القصة.', { voice: P.voice.key, rate: P.voice.rate, onLevel: v => Characters.level(v) }); Characters.speaking(false); };
 if ('speechSynthesis' in window) speechSynthesis.onvoiceschanged = refreshVoiceList;
 
 /* ---------- مزامنة الواجهة مع المشروع ---------- */

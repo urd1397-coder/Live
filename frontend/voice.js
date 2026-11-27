@@ -10,7 +10,6 @@ const Voice = (() => {
     excited: [.06, .06], sad: [-.1, -.05], angry: [.05, -.05], scared: [.07, .06], shock: [.03, .05], think: [-.06, 0], serious: [-.04, -.04],
     laugh: [.04, .04], scream: [.06, .06], sassy: [-.03, .02], mocking: [.02, .04], neutral: [0, 0]
   };
-  const SERVER_VOICES = [['male', 'ذكر (سعودي)'], ['eg-male', 'ذكر (مصري)'], ['sy-male', 'ذكر (سوري)'], ['ae-male', 'ذكر (إماراتي)'], ['female', 'أنثى (سعودية)'], ['eg-female', 'أنثى (مصرية)']];
   let caps = { tts: [] }, actx = null, analyser = null, runId = 0, cur = null, serverFailures = 0;
   const cache = new Map();
 
@@ -19,28 +18,31 @@ const Voice = (() => {
   function unlock() { const c = ctx(); if (c && c.state === 'suspended') c.resume(); }
   const serverOn = () => caps.tts && caps.tts.length > 0 && serverFailures < 2;
 
+  // أصوات المتصفح: العربية أولاً ثم بقية اللغات
   function browserVoices() {
     if (!('speechSynthesis' in window)) return [];
-    return speechSynthesis.getVoices().filter(v => /^ar([-_]|$)/i.test(v.lang)).map(v => ({ key: 'b:' + v.name, label: v.name + ' · ' + v.lang, kind: 'browser' }));
+    const all = speechSynthesis.getVoices(), isAr = v => /^ar([-_]|$)/i.test(v.lang);
+    return all.slice().sort((a, b) => isAr(b) - isAr(a)).map(v => ({ key: 'b:' + v.name, label: v.name + ' · ' + v.lang, group: isAr(v) ? 'صوت المتصفح (عربي)' : 'صوت المتصفح (لغات أخرى)', kind: 'browser', lang: v.lang }));
   }
   function listVoices() {
     const list = [];
-    if (serverOn()) SERVER_VOICES.forEach(([k, l]) => list.push({ key: 's:' + k, label: '🎙️ ' + l + ' — صوت عصبي', kind: 'server' }));
+    if (serverOn()) (caps.voices || []).forEach(v => list.push({ key: 's:' + v.key, label: v.label, group: '🎙️ ' + v.group + ' — صوت عصبي', kind: 'server', sample: v.sample }));
     return list.concat(browserVoices());
   }
+  const sampleFor = key => { const v = listVoices().find(x => x.key === key); return v && v.sample; };
 
   /* ---------- صوت الخادم ---------- */
-  function keyOf(text, o) { return [o.voice || '', o.rate || 1, text].join('|'); }
+  function keyOf(text, o) { return [o.voice || '', o.rate || 1, o.emotion || '', Math.round((o.intensity == null ? .6 : o.intensity) * 4), text].join('|'); }
   function prefetch(text, o = {}) {
     if (!serverOn() || !(o.voice || '').startsWith('s:') && o.voice) return null;
     const c = ctx(); if (!c) return null; const key = keyOf(text, o);
     if (!cache.has(key)) {
-      const p = fetch('/api/tts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, voice: (o.voice || '').replace(/^s:/, ''), rate: o.rate || 1, emotion: o.emotion || 'neutral' }) })
+      const p = fetch('/api/tts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, voice: (o.voice || '').replace(/^s:/, ''), rate: o.rate || 1, emotion: o.emotion || 'neutral', intensity: o.intensity == null ? .6 : o.intensity }) })
         .then(r => { if (!r.ok) throw new Error('tts ' + r.status); return r.arrayBuffer(); })
         .then(b => new Promise((res, rej) => c.decodeAudioData(b, res, rej)))
         .then(buf => { serverFailures = 0; return buf; });
       p.catch(() => { serverFailures++; cache.delete(key); });
-      cache.set(key, p); if (cache.size > 12) cache.delete(cache.keys().next().value);
+      cache.set(key, p); if (cache.size > 24) cache.delete(cache.keys().next().value);
     }
     return cache.get(key);
   }
@@ -100,5 +102,5 @@ const Voice = (() => {
   function captureStream() { const c = ctx(); if (!c) return null; if (!recDest) { recDest = c.createMediaStreamDestination(); analyser.connect(recDest); } return recDest.stream; }
   function releaseCapture() { if (recDest) { try { analyser.disconnect(recDest); } catch (e) { /* ok */ } recDest = null; } }
 
-  return { init, unlock, listVoices, speak, prefetch, cancel, captureStream, releaseCapture, get caps() { return caps; }, get serverOn() { return serverOn(); } };
+  return { init, unlock, listVoices, sampleFor, speak, prefetch, cancel, captureStream, releaseCapture, get caps() { return caps; }, get serverOn() { return serverOn(); } };
 })();
