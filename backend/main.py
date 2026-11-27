@@ -363,11 +363,10 @@ def get_state():
         tts.append('openai')
     if gemini_key():
         tts.append('gemini')
-    try:
-        import edge_tts  # noqa: F401
+    if azure_ready():
+        tts.append('azure')
+    if edge_allowed():
         tts.append('edge')
-    except Exception:  # noqa: BLE001
-        pass
     return {**state, 'modes': MODES, 'ai_provider': provider(), 'ai_ready': bool(provider()), 'tts': tts,
             'voices': voice_catalog(tts)}
 
@@ -526,7 +525,7 @@ def voice_catalog(tts: List[str]) -> List[Dict[str, str]]:
     if gemini_key():
         out += [{'key': 'g:' + n, 'label': f'{n} · {d}', 'group': 'Gemini (مجاني · حصة يومية محدودة)', 'sample': _AR_SAMPLE}
                 for n, d in GEMINI_VOICES]
-    if 'edge' in tts:
+    if 'azure' in tts or 'edge' in tts:
         for group, sample, voices in VOICE_GROUPS:
             for key, label in voices:
                 out.append({'key': key, 'label': label, 'group': group, 'sample': sample})
@@ -583,6 +582,47 @@ def _gemini_tts(text: str, voice_name: str, edge_voice: str = '', emotion: str =
     raise RuntimeError('gemini-tts ' + last)
 
 
+def azure_ready() -> bool:
+    return bool(os.getenv('AZURE_SPEECH_KEY') and (os.getenv('AZURE_SPEECH_REGION') or os.getenv('AZURE_SPEECH_ENDPOINT')))
+
+
+def edge_allowed() -> bool:
+    """edge-tts يستعمل خدمة قراءة متصفح Edge بلا ترخيص تجاري، فهو معطّل افتراضياً. فعّله فقط للتجربة الشخصية بـ ALLOW_UNOFFICIAL_TTS=1."""
+    if os.getenv('ALLOW_UNOFFICIAL_TTS', '') != '1':
+        return False
+    try:
+        import edge_tts  # noqa: F401
+        return True
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def _azure_synth(text: str, voice: str, pct: int, hz: int) -> bytes:
+    """Azure AI Speech الرسمي (نفس الأصوات العصبية، وترخيصه تجاري، وفيه حصة مجانية شهرية)."""
+    from xml.sax.saxutils import escape
+    url = os.getenv('AZURE_SPEECH_ENDPOINT') or f"https://{os.environ['AZURE_SPEECH_REGION']}.tts.speech.microsoft.com/cognitiveservices/v1"
+    lang = '-'.join(voice.split('-')[:2])
+    ssml = (f"<speak version='1.0' xml:lang='{lang}' xmlns='http://www.w3.org/2001/10/synthesis'><voice name='{voice}'>"
+            f"<prosody rate='{pct:+d}%' pitch='{hz:+d}Hz'>{escape(text)}</prosody></voice></speak>")
+    req = urllib.request.Request(url, data=ssml.encode('utf-8'), method='POST', headers={
+        'Ocp-Apim-Subscription-Key': os.environ['AZURE_SPEECH_KEY'], 'Content-Type': 'application/ssml+xml',
+        'X-Microsoft-OutputFormat': 'audio-24khz-96kbitrate-mono-mp3', 'User-Agent': 'live-studio'})
+    try:
+        with urllib.request.urlopen(req, timeout=60) as r:
+            return r.read()
+    except urllib.error.HTTPError as exc:
+        hint = {401: 'المفتاح مرفوض', 403: 'المفتاح أو المنطقة غير صحيحين', 429: 'تجاوزت الحد'}.get(exc.code, '')
+        raise RuntimeError(f'Azure {exc.code} {hint}'.strip())
+
+
+async def _synth(text: str, voice: str, pct: int, hz: int) -> bytes:
+    if azure_ready():
+        return await run_in_threadpool(_azure_synth, text, voice, pct, hz)
+    if edge_allowed():
+        return await _edge_synth(text, voice, pct, hz)
+    raise RuntimeError('لا يوجد مزوّد صوت مرخّص: أضف AZURE_SPEECH_KEY و AZURE_SPEECH_REGION')
+
+
 async def _edge_synth(text: str, voice: str, pct: int, hz: int) -> bytes:
     import edge_tts
     err: Optional[Exception] = None
@@ -603,20 +643,17 @@ async def _edge_synth(text: str, voice: str, pct: int, hz: int) -> bytes:
 @app.get('/api/tts/check')
 async def tts_check(voice: str = 'ar-SY-LaithNeural'):
     """فحص سريع يوضح لماذا لا يعمل الصوت العصبي على الخادم."""
-    out: Dict[str, Any] = {'edge_installed': False, 'gemini_key': bool(gemini_key())}
-    try:
-        import edge_tts  # noqa: F401
-        out['edge_installed'] = True
-    except Exception as exc:  # noqa: BLE001
-        out['edge_error'] = f'{type(exc).__name__}: {exc}'[:200]
-    if out['edge_installed']:
+    out: Dict[str, Any] = {'azure_configured': azure_ready(), 'edge_enabled(unofficial)': edge_allowed(), 'gemini_key': bool(gemini_key())}
+    if azure_ready() or edge_allowed():
         for v in dict.fromkeys([voice, 'ar-SA-HamedNeural']):
             t0 = time.time()
             try:
-                audio = await _edge_synth('مرحبا', v, 0, 0)
-                out['edge_' + v] = f'ok {len(audio)} bytes in {time.time() - t0:.1f}s'
+                audio = await _synth('مرحبا', v, 0, 0)
+                out['voice_' + v] = f'ok {len(audio)} bytes in {time.time() - t0:.1f}s'
             except Exception as exc:  # noqa: BLE001
-                out['edge_' + v] = f'FAIL {type(exc).__name__}: {str(exc)[:160]}'
+                out['voice_' + v] = f'FAIL {type(exc).__name__}: {str(exc)[:160]}'
+    else:
+        out['note'] = 'لا يوجد مزوّد أصوات مرخّص للتجاري. أضف AZURE_SPEECH_KEY و AZURE_SPEECH_REGION في Render.'
     if gemini_key():
         t0 = time.time()
         try:
@@ -658,10 +695,8 @@ async def tts(req: TtsRequest):
             except Exception as exc:  # noqa: BLE001
                 raise HTTPException(502, f'صوت Gemini تعذّر ({str(exc)[:90]}). غالباً وصلت للحصة اليومية المجانية.')
             return Response(audio, media_type='audio/wav')
-        try:
-            import edge_tts  # noqa: F401
-        except Exception:  # noqa: BLE001
-            raise HTTPException(501, 'لا يوجد مزوّد صوت على الخادم. سيُستخدم صوت المتصفح.')
+        if not (azure_ready() or edge_allowed()):
+            raise HTTPException(501, 'لا يوجد مزوّد أصوات مرخّص على الخادم (AZURE_SPEECH_KEY). سيُستخدم صوت المتصفح.')
         voice = EDGE_VOICES.get(req.voice) or (req.voice if _VOICE_RE.match(req.voice) else EDGE_VOICES['male'])
         dr, dp = EMO_PROSODY.get(req.emotion, (0, 0)); k = 0.4 + 0.6 * req.intensity
         pct = int(round((req.rate - 1) * 100 + dr * k)); hz = int(round(dp * k))
@@ -670,16 +705,16 @@ async def tts(req: TtsRequest):
             _tts_cache.move_to_end(key)
             return Response(_tts_cache[key], media_type='audio/mpeg')
         try:
-            audio = await _edge_synth(text, voice, pct, hz)
+            audio = await _synth(text, voice, pct, hz)
         except Exception as exc:  # noqa: BLE001
-            log.warning('edge-tts failed for %s: %s: %s', voice, type(exc).__name__, exc)
+            log.warning('tts failed for %s: %s: %s', voice, type(exc).__name__, exc)
             if gemini_key():      # بديل طبيعي بدل صوت المتصفح
                 try:
                     gv = 'Kore' if _FEMALE_RE.search(voice) else 'Charon'
                     return Response(await run_in_threadpool(_gemini_tts, text, gv, voice, req.emotion), media_type='audio/wav')
                 except Exception as exc2:  # noqa: BLE001
                     log.warning('gemini tts fallback failed: %s', exc2)
-            raise HTTPException(502, f'الصوت العصبي ({voice}) تعذّر على الخادم: {type(exc).__name__} {str(exc)[:80]}')
+            raise HTTPException(502, f'الصوت العصبي ({voice}) تعذّر على الخادم: {str(exc)[:100]}')
         _tts_cache[key] = audio
         while len(_tts_cache) > 120:
             _tts_cache.popitem(last=False)

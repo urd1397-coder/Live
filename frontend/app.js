@@ -254,7 +254,7 @@ function refreshVoiceList() {
   if (typeof showSegEditor === 'function') showSegEditor();
   const info = $('voiceInfo');
   if (Voice.serverOn) { info.className = 'banner ok'; info.textContent = 'أصوات عصبية متاحة بلهجات عربية كثيرة ولغات أخرى. اختر اللغة/اللهجة ثم الصوت. صوت المتصفح موجود في آخر قائمة اللغات.'; }
-  else if (list.length) { info.className = 'banner warn'; info.textContent = 'الأصوات العصبية غير متاحة الآن، والمتاح فقط أصوات جهازك (جودتها تعتمد على الجهاز). إذا كنت على Render فتأكد أن edge-tts مثبّت في requirements.txt وأن النشر الأخير نجح.'; }
+  else if (list.length) { info.className = 'banner warn'; info.textContent = 'الأصوات العصبية غير متاحة الآن، والمتاح فقط أصوات جهازك (جودتها تعتمد على الجهاز). لأصوات عصبية مرخّصة للاستخدام التجاري أضف AZURE_SPEECH_KEY و AZURE_SPEECH_REGION في Render (يوجد مستوى مجاني).'; }
   else { info.className = 'banner warn'; info.textContent = 'جهازك لا يحوي صوتاً عربياً. ثبّت صوتاً عربياً من إعدادات النظام (تحويل النص إلى كلام)، أو فعّل صوت الخادم.'; }
 }
 bind('voiceGroup', () => { fillGroupVoices(); const v = $('voiceSel').value; if (v) { P.voice.key = v; save(); if (typeof showSegEditor === 'function') showSegEditor(); } }, 'change');
