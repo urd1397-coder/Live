@@ -145,7 +145,10 @@ def _gemini_call(system: str, user: str, max_tokens: int, temperature: float, js
         tried.add(model)
         for attempt in range(2):
             try:
-                data = _post_json(f'{GEMINI_BASE}/models/{model}:generateContent', {'x-goog-api-key': gemini_key()}, body, 110)
+                mb = dict(body); mb['generationConfig'] = dict(body['generationConfig'])
+                if re.search(r'2\.5-flash(?!-lite)', model):          # تفكير قصير = أسرع بكثير في الكتابة
+                    mb['generationConfig']['thinkingConfig'] = {'thinkingBudget': 1024}
+                data = _post_json(f'{GEMINI_BASE}/models/{model}:generateContent', {'x-goog-api-key': gemini_key()}, mb, 110)
             except urllib.error.HTTPError as exc:
                 detail = ''
                 try:
