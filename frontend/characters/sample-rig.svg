@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 600">
+  <!-- نموذج شخصية جاهزة للتعديل. غيّر الرسم كما تريد وأبقِ الـ id كما هي. data-pivot اختياري: "x,y" نقطة الدوران -->
+  <g id="live-body">
+    <path d="M300 330V520M300 380L220 450M300 380L380 450M300 520L250 590M300 520L350 590" stroke="#222" stroke-width="12" stroke-linecap="round" fill="none"/>
+    <g id="live-arm-l" data-pivot="300,380"><path d="M300 380L215 470" stroke="#222" stroke-width="12" stroke-linecap="round"/><circle cx="212" cy="474" r="16" fill="#ffd9b5" stroke="#222" stroke-width="6"/></g>
+    <g id="live-arm-r" data-pivot="300,380"><path d="M300 380L385 470" stroke="#222" stroke-width="12" stroke-linecap="round"/><circle cx="388" cy="474" r="16" fill="#ffd9b5" stroke="#222" stroke-width="6"/></g>
+    <g id="live-head" data-pivot="300,330">
+      <circle cx="300" cy="230" r="100" fill="#ffd9b5" stroke="#222" stroke-width="8"/>
+      <g id="live-eyes"><ellipse cx="262" cy="215" rx="11" ry="16" fill="#222"/><ellipse cx="338" cy="215" rx="11" ry="16" fill="#222"/></g>
+      <g id="live-face-angry" style="display:none"><path d="M240 185L282 200M360 185L318 200" stroke="#222" stroke-width="8" stroke-linecap="round"/></g>
+      <g id="live-face-sad" style="display:none"><path d="M240 200L282 185M360 200L318 185" stroke="#222" stroke-width="8" stroke-linecap="round"/></g>
+      <path id="live-mouth" d="M265 270Q300 300 335 270Q300 330 265 270Z" fill="#7a2a3a" stroke="#222" stroke-width="6" stroke-linejoin="round"/>
+    </g>
+  </g>
+</svg>

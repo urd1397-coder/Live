@@ -1,522 +1,285 @@
 'use strict';
-/* ============================================================
-   Live Studio
-   1) الشخصية (Puppet): مفاصل ووجه تتحكم فيها متغيرات CSS
-   2) فهم النص: يحلل كل جملة ويحدد الانفعال (يضحك، يصرخ، يفكر…)
-   3) الأداء: يمثّل الانفعال بالجسم + الوجه + الصوت + المؤثرات
-   ============================================================ */
+/* app.js — حالة المشروع، المسرح، اللوحات (المشهد/الشخصية/النصوص/الصوت)، الحفظ والفتح.
+   studio.js: الخط الزمني، التشغيل، كتابة القصة، البث. */
 const $ = id => document.getElementById(id);
-const rnd = (a, b) => a + Math.random() * (b - a);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const wait = ms => new Promise(r => setTimeout(r, ms));
-const bubble = $('bubble'), statusEl = $('status'), feed = $('feed'), character = $('character');
-
-/* ---------- 1) الشخصية: الرسم والمحرك في rig.js ---------- */
-Rig.mount(character);
-
-// بيانات الانفعالات للصوت والواجهة. الوضعية الجسدية لكل انفعال معرّفة داخل rig.js (POSES).
-const EMOTIONS = {
-  neutral: { label: 'عادي',   emoji: '🙂', vocal: { pitch: 1,    rate: 1    } },
-  laugh:   { label: 'يضحك',   emoji: '😂', vocal: { pitch: 1.25, rate: 1.1  }, sfx: 'laugh' },
-  scream:  { label: 'يصرخ',   emoji: '😱', vocal: { pitch: 1.8,  rate: 1.25 }, sfx: 'scream' },
-  shock:   { label: 'يتفاجأ', emoji: '😲', vocal: { pitch: 1.5,  rate: 1.05 }, sfx: 'shock' },
-  angry:   { label: 'يغضب',   emoji: '😡', vocal: { pitch: 0.65, rate: 1.2  }, sfx: 'angry' },
-  think:   { label: 'يفكر',   emoji: '🤔', vocal: { pitch: 0.9,  rate: 0.85 }, sfx: 'think' },
-  sad:     { label: 'حزين',   emoji: '😢', vocal: { pitch: 0.75, rate: 0.8  }, sfx: 'sad' },
-  scared:  { label: 'خايف',   emoji: '😨', vocal: { pitch: 1.6,  rate: 1.2  }, sfx: 'scared' },
-  sassy:   { label: 'ساخر',   emoji: '😏', vocal: { pitch: 1.1,  rate: 0.95 }, sfx: 'sassy' },
-  excited: { label: 'متحمس',  emoji: '🤩', vocal: { pitch: 1.3,  rate: 1.2  }, sfx: 'excited' },
-  serious: { label: 'جاد',    emoji: '😐', vocal: { pitch: 0.8,  rate: 0.95 } },
-  mocking: { label: 'يستهزئ', emoji: '😆', vocal: { pitch: 1.35, rate: 1.1  }, sfx: 'laugh' }
+const EMO_META = {
+  neutral: ['🙂', 'عادي'], think: ['🤔', 'يفكر'], sassy: ['😏', 'ساخر'], serious: ['😐', 'جاد'], shock: ['😲', 'يتفاجأ'], scared: ['😨', 'خايف'],
+  sad: ['😢', 'حزين'], angry: ['😡', 'يغضب'], excited: ['🤩', 'متحمس'], laugh: ['😂', 'يضحك'], scream: ['😱', 'يصرخ'], mocking: ['😆', 'يستهزئ']
 };
-let curEmo = 'neutral', beatTimer = null;
-function applyPose(name) { curEmo = EMOTIONS[name] ? name : 'neutral'; Rig.pose(curEmo); }
-function startBeats() { stopBeats(); Rig.beat(); beatTimer = setInterval(Rig.beat, 750); }
-function stopBeats() { clearInterval(beatTimer); beatTimer = null; Rig.rest(); }
-function floatFx() { Rig.fx(); }
 
-/* ---------- مؤثرات صوتية (WebAudio، بدون ملفات) ---------- */
-let actx = null;
-function ac() {
-  if (!actx) { const C = window.AudioContext || window.webkitAudioContext; if (!C) return null; actx = new C(); }
-  if (actx.state === 'suspended') actx.resume();
-  return actx;
+/* ---------- حالة المشروع ---------- */
+function newProject() {
+  const aspect = '9:16';
+  return {
+    v: 2, kind: 'live-studio-project', name: 'مشروع جديد', aspect, bg: { type: 'preset', preset: 'studio' }, desk: true,
+    char: { mode: 'builtin', skin: {}, headphones: true, images: {}, svgText: '', layout: { ...Scene.autoLayout(aspect), flip: false } },
+    texts: [{ id: 't' + Date.now(), text: 'LIVE', x: .2, y: .07, size: 6, color: '#ff5bd8', font: 'Cairo', glow: true }],
+    caps: { on: true, size: 4.2, y: 82, color: '#ffffff', hl: '#ffd34d', box: true },
+    voice: { key: '', rate: 1 },
+    script: { segments: [], bible: null, topic: '', kind: 'story', tone: 'ساخر وخفيف', dialect: 'بيضاء', len: 16, notes: '' }
+  };
 }
-function tone(freq, t0, dur, o = {}) {
-  const c = ac(); if (!c) return;
-  const osc = c.createOscillator(), g = c.createGain(), t = c.currentTime + t0, gain = o.gain || 0.12;
-  osc.type = o.type || 'sine';
-  osc.frequency.setValueAtTime(freq, t);
-  if (o.slide) osc.frequency.linearRampToValueAtTime(freq + o.slide, t + dur);
-  g.gain.setValueAtTime(0.0001, t);
-  g.gain.exponentialRampToValueAtTime(gain, t + 0.02);
-  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-  osc.connect(g); g.connect(c.destination);
-  osc.start(t); osc.stop(t + dur + 0.05);
-}
-const SFX = {
-  laugh()   { [0, .14, .28, .42].forEach((t, i) => tone(520 + i * 35, t, .1, { type: 'square', gain: .05 })); },
-  scream()  { tone(500, 0, .8, { type: 'sawtooth', gain: .06, slide: 1000 }); tone(520, 0, .8, { type: 'square', gain: .03, slide: 1050 }); },
-  shock()   { tone(180, 0, .25, { type: 'triangle', gain: .2 }); tone(150, .02, .4, { type: 'sawtooth', gain: .05 }); },
-  think()   { tone(330, 0, .18); tone(392, .22, .18); tone(311, .44, .3); },
-  sad()     { tone(392, 0, .3, { type: 'triangle', slide: -30 }); tone(349, .35, .3, { type: 'triangle', slide: -30 }); tone(294, .7, .7, { type: 'triangle', slide: -70 }); },
-  angry()   { tone(90, 0, .6, { type: 'sawtooth', gain: .12, slide: -25 }); },
-  scared()  { [0, .09, .18, .27, .36].forEach(t => tone(700, t, .07, { gain: .06, slide: 60 })); },
-  excited() { [523, 659, 784, 1047].forEach((f, i) => tone(f, i * .09, .14, { type: 'triangle' })); },
-  sassy()   { tone(440, 0, .12, { type: 'triangle' }); tone(554, .14, .25, { type: 'triangle', slide: -120 }); }
+let P = newProject(), selText = null;
+const A = () => Scene.ASPECTS[P.aspect] || Scene.ASPECTS['9:16'];
+
+/* ---------- تخزين تلقائي (IndexedDB) ---------- */
+const DB = {
+  open() { return new Promise((res, rej) => { const r = indexedDB.open('live-studio', 1); r.onupgradeneeded = () => r.result.createObjectStore('kv'); r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error); }); },
+  async get(k) { const db = await this.open(); return new Promise((res, rej) => { const q = db.transaction('kv').objectStore('kv').get(k); q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error); }); },
+  async set(k, v) { const db = await this.open(); return new Promise((res, rej) => { const t = db.transaction('kv', 'readwrite'); t.objectStore('kv').put(v, k); t.oncomplete = res; t.onerror = () => rej(t.error); }); }
 };
-const sfxOn = () => $('optSfx') ? $('optSfx').checked : true;
-const vocalOn = () => $('optVocal') ? $('optVocal').checked : true;
-function sfx(name) { if (sfxOn() && SFX[name]) try { SFX[name](); } catch (e) { /* الصوت غير مدعوم */ } }
+let saveTimer = 0;
+function save() { clearTimeout(saveTimer); saveTimer = setTimeout(() => { DB.set('autosave', JSON.stringify(P)).catch(() => { try { localStorage.setItem('live-studio-autosave', JSON.stringify({ ...P, char: { ...P.char, images: {} }, bg: P.bg.type === 'image' ? { type: 'preset', preset: 'studio' } : P.bg })); } catch (e) { /* ممتلئ */ } }); }, 700); }
+function setStatus(t) { $('status').textContent = t; }
 
-/* ---------- الكلام ---------- */
-const voicePicker = $('voiceSelect'), rateSlider = $('voiceRate');
-let selectedVoice = null, runId = 0;
-
-function refreshVoices() {
-  if (!voicePicker || !('speechSynthesis' in window)) return;
-  const vs = speechSynthesis.getVoices().filter(v => /^ar([-_]|$)/i.test(v.lang));
-  voicePicker.replaceChildren();
-  if (!vs.length) { voicePicker.add(new Option('لا توجد أصوات عربية على الجهاز', '')); return; }
-  vs.forEach(v => voicePicker.add(new Option(v.name + ' · ' + v.lang, v.name)));
-  selectedVoice = vs[0]; voicePicker.value = vs[0].name;
+/* ---------- المسرح ---------- */
+let K = 1;   // معامل التصغير
+function fit() {
+  const a = A(), area = $('stageArea'), aw = area.clientWidth - 20, ah = area.clientHeight - 20; if (aw <= 0 || ah <= 0) return;
+  K = Math.min(aw / a.w, ah / a.h);
+  const wrap = $('stageWrap'), st = $('stage');
+  wrap.style.width = Math.floor(a.w * K) + 'px'; wrap.style.height = Math.floor(a.h * K) + 'px';
+  st.style.width = a.w + 'px'; st.style.height = a.h + 'px'; st.style.transform = `scale(${K})`;
 }
-if ('speechSynthesis' in window) { speechSynthesis.onvoiceschanged = refreshVoices; refreshVoices(); }
-if (voicePicker) voicePicker.onchange = () => selectedVoice = speechSynthesis.getVoices().find(v => v.name === voicePicker.value) || null;
-if (rateSlider) rateSlider.oninput = () => $('rateLabel').textContent = rateSlider.value + '×';
-
-// ينطق نص ويحرك الفم أثناء النطق. يرجع Promise ينتهي بنهاية الكلام (أو بمدة تقديرية لو ما فيه صوت).
-function speak(text, vocal, id) {
-  return new Promise(resolve => {
-    const t0 = Date.now(), minDur = text.length * 45;
-    let done = false, guard;
-    const finish = () => {
-      if (done) return; done = true; clearTimeout(guard);
-      Rig.speaking(false); resolve();
-    };
-    const finishPaced = () => {                     // لا نسمح بالمرور أسرع من سرعة القراءة
-      const el = Date.now() - t0;
-      if (id !== runId || el >= minDur) finish(); else setTimeout(finish, minDur - el);
-    };
-    Rig.speaking(true);
-    if (!('speechSynthesis' in window)) { setTimeout(finish, text.length * 70); return; }
-    const u = new SpeechSynthesisUtterance(text);
-    u.lang = selectedVoice?.lang || 'ar-SA';
-    if (selectedVoice) u.voice = selectedVoice;
-    u.rate = clamp(Number(rateSlider?.value || 1) * (vocal.rate || 1), 0.5, 2);
-    u.pitch = clamp(vocal.pitch || 1, 0, 2);
-    u.volume = 1;
-    u.onend = finishPaced;
-    u.onerror = () => { if (id !== runId) finish(); else setTimeout(finish, Math.max(0, text.length * 65 - (Date.now() - t0))); };
-    guard = setTimeout(finish, text.length * 180 + 4000);   // لو المحرك علّق
-    speechSynthesis.speak(u);
+new ResizeObserver(fit).observe($('stageArea'));
+function renderBg() { $('lyBg').innerHTML = Scene.bgHTML(P.bg, A().w, A().h); }
+function renderProps() { const a = A(), d = Scene.autoLayout(P.aspect).deskTop * a.h; $('lyProps').innerHTML = P.desk ? Scene.propsHTML(a.w, a.h, d) : ''; }
+function placeChar() {
+  const a = A(), L = P.char.layout, S = L.size * a.w, el = $('lyChar');
+  el.className = 'layer charbox'; el.style.cssText = `position:absolute;left:${L.cx * a.w - S / 2}px;top:${L.top * a.h}px;width:${S}px;height:${S}px;transform:${L.flip ? 'scaleX(-1)' : 'none'}`;
+}
+function applyChar() {
+  Characters.init($('lyChar')); placeChar(); const impl = Characters.apply(P.char);
+  if (impl && impl.error) setStatus('تعذّر تحميل الشخصية، رجعنا للمدمجة: ' + impl.error);
+  const info = Characters.impl && Characters.impl.info; $('svInfo').textContent = info ? 'أجزاء وُجدت: ' + (info.found.join('، ') || 'لا شيء') + (info.faces.length ? ' · تعبيرات: ' + info.faces.join('، ') : '') : '';
+}
+function fontSize(pct) { return pct / 100 * Math.min(A().w, A().h); }
+function renderTexts() {
+  const lay = $('lyTexts'), a = A(); lay.replaceChildren();
+  for (const t of P.texts) {
+    const d = document.createElement('div'); d.className = 'tx' + (t.id === selText ? ' sel' : ''); d.textContent = t.text; d.dataset.id = t.id;
+    d.style.cssText = `left:${t.x * a.w}px;top:${t.y * a.h}px;font-size:${fontSize(t.size)}px;color:${t.color};font-family:'${t.font}',Cairo,sans-serif;` + (t.glow ? `text-shadow:0 0 ${fontSize(t.size) * .25}px ${t.color},0 0 ${fontSize(t.size) * .6}px ${t.color}` : 'text-shadow:0 2px 6px #0008');
+    lay.append(d); drag(d, e0 => ({ x: t.x, y: t.y }), (s, dx, dy) => { t.x = clamp(s.x + dx / a.w, .02, .98); t.y = clamp(s.y + dy / a.h, .02, .98); d.style.left = t.x * a.w + 'px'; d.style.top = t.y * a.h + 'px'; if (t.id === selText) syncTextCtl(); }, () => { chooseText(t.id); save(); });
+  }
+}
+function renderCapStyle() {
+  const c = P.caps, lay = $('lyCaps'); let el = lay.querySelector('.cap');
+  if (!el) { el = document.createElement('div'); el.className = 'cap'; lay.append(el); }
+  el.className = 'cap' + (c.box ? ' box' : ''); el.style.cssText = `top:${c.y}%;font-size:${fontSize(c.size)}px;color:${c.color};font-family:Cairo,sans-serif;transform:translate(-50%,-50%);display:${c.on ? '' : 'none'}`; el.style.setProperty('--hl', c.hl);
+  el.querySelectorAll('.hl').forEach(h => h.style.color = c.hl);
+}
+function setCaption(text, emph) {
+  renderCapStyle(); const el = $('lyCaps').querySelector('.cap'); el.replaceChildren(); if (!text) return;
+  const ranges = []; for (const w of (emph || [])) { const i = text.indexOf(w); if (w && i >= 0) ranges.push([i, i + w.length]); }
+  ranges.sort((x, y) => x[0] - y[0]); let pos = 0;
+  for (const [s, e] of ranges) { if (s < pos) continue; el.append(text.slice(pos, s)); const sp = document.createElement('span'); sp.className = 'hl'; sp.style.color = P.caps.hl; sp.textContent = text.slice(s, e); el.append(sp); pos = e; }
+  el.append(text.slice(pos));
+}
+// سحب عنصر على المسرح بإحداثيات التصميم (يعمل بالماوس واللمس)
+function drag(el, start, move, end) {
+  el.addEventListener('pointerdown', e => {
+    if (e.button > 0) return; e.preventDefault(); el.setPointerCapture(e.pointerId);
+    const sx = e.clientX, sy = e.clientY, s = start(e); let moved = false;
+    const mv = ev => { const dx = (ev.clientX - sx) / K, dy = (ev.clientY - sy) / K; if (Math.abs(dx) + Math.abs(dy) > 3) moved = true; move(s, dx, dy); };
+    const up = () => { el.removeEventListener('pointermove', mv); el.removeEventListener('pointerup', up); el.removeEventListener('pointercancel', up); if (end) end(moved); };
+    el.addEventListener('pointermove', mv); el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up);
   });
 }
-function cancelAll() {
-  runId++; stopBeats();
-  if ('speechSynthesis' in window) speechSynthesis.cancel();
-  Rig.speaking(false);
+drag($('lyChar'), () => ({ cx: P.char.layout.cx, top: P.char.layout.top }), (s, dx, dy) => { const L = P.char.layout, a = A(); L.cx = clamp(s.cx + dx / a.w, -.2, 1.2); L.top = clamp(s.top + dy / a.h, -.4, 1); placeChar(); syncLayoutCtl(); }, () => save());
+
+/* ---------- تبويبات ---------- */
+function openTab(name) {
+  document.querySelectorAll('#tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === name));
+  document.querySelectorAll('.pane').forEach(p => p.classList.toggle('on', p.dataset.pane === name));
 }
+$('tabs').addEventListener('click', e => { const b = e.target.closest('button[data-tab]'); if (b) openTab(b.dataset.tab); });
+const bind = (id, fn, ev = 'input') => { const el = $(id); if (el) el.addEventListener(ev, e => fn(el, e)); };
 
-/* ---------- 2) فهم النص ---------- */
-const NORM = s => s.toLowerCase().replace(/[ً-ْـ]/g, '').replace(/[إأآ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه');
-const esc = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-// s = كلمات قوية (٢ نقطة)، w = كلمات ضعيفة (١ نقطة). تُكتب بأي لهجة؛ المطابقة على جزء الكلمة.
-const LEX_RAW = {
-  laugh:   { s: ['ههه', 'ها ها', 'ضحك', 'مضحك', 'قهقه', 'نكتة', 'lol', '😂', '🤣'], w: ['طريف', 'مسخرة', 'سخيف', 'ظريف', 'هزل', 'كوميد', 'تهريج', 'فضيحة'] },
-  scream:  { s: ['صرخ', 'صراخ', 'يصيح', 'النجدة', 'نجدة', 'ساعدوني', 'انقذوني', 'يا ساتر'], w: ['انفجر', 'كارثة', 'مصيبة'] },
-  shock:   { s: ['فجأة', 'مفاجأة', 'صدمة', 'مستحيل', 'معقول', 'ما صدق', 'غير معقول', 'لا يصدق', 'ذهول', 'تفاجأ', 'فاجأ', 'اكتشف', 'ما كان متوقع', 'ما توقع'], w: ['غريب', 'عجيب', 'طلع', 'ظهر', 'مصدوم', 'لحظة', 'يعني كل'] },
-  angry:   { s: ['غبي', 'زبالة', 'خرا', 'stupid', 'غضب', 'غاضب', 'عصب', 'مجنون', 'ظلم', 'خيانة', 'كذاب', 'وقح', 'قهر', 'غش', 'سرق', 'احتيال', 'يكره', 'استفز', 'طرد'], w: ['زعل', 'رفض', 'هدد', 'لعن', 'حقير', 'مشكلة', 'سيء', 'سيئ'] },
-  think:   { s: ['فكر', 'يا ترى', 'تخيل', 'لغز', 'غموض', 'محتار', 'حيرة', 'رأيكم', 'توقعوا', 'ليش', 'لماذا'], w: ['كيف', 'سر', 'ربما', 'احتمال', 'يمكن', 'سؤال', 'خطة', 'فكرة'] },
-  sad:     { s: ['حزن', 'حزين', 'بكى', 'بكاء', 'دموع', 'فقد', 'وفاة', 'مات', 'رحل', 'فراق', 'حسرة', 'ندم', 'وحيد'], w: ['خسر', 'خسارة', 'للأسف', 'فشل', 'ضاع', 'انتهى', 'موجع', 'مؤلم', 'يائس', 'تعب'] },
-  scared:  { s: ['خوف', 'خايف', 'خائف', 'رعب', 'مرعب', 'مخيف', 'شبح', 'وحش', 'يرتجف', 'ارتجف', 'مطاردة', 'قاتل', 'ظلام', 'مرعوب'], w: ['هرب', 'هروب', 'اختبأ', 'خطر', 'جريمة', 'صوت غريب'] },
-  sassy:   { s: ['يا سلام', 'بثقة', 'عبقري', 'تحفة', 'يا شيخ', 'ما شاء الله عليك', 'مغرور', 'أنا الأفضل'], w: ['طبعا', 'أكيد', 'بطل', 'واو', 'ذكي', 'عظمة', 'بصراحة', 'صراحة'] },
-  excited: { s: ['رائع', 'مدهش', 'مذهل', 'مبهر', 'فاز', 'فوز', 'نجح', 'نجاح', 'مبروك', 'انتصار', 'جائزة', 'احتفال', 'يحتفل', 'حماس', 'متحمس', 'احبك', 'love', '❤'], w: ['أخيرا', 'ممتاز', 'ربح', 'كسب', 'يلا', 'هيا', 'حب'] }
-};
-const mk = list => new RegExp(list.map(x => esc(NORM(x))).join('|'), 'g');
-const LEX = {};
-for (const [e, o] of Object.entries(LEX_RAW)) LEX[e] = { s: mk(o.s), w: mk(o.w) };
-
-// توجيهات المخرج اليدوية: [يصرخ] (يضحك) *يفكر*
-const DIRECT_RAW = {
-  scream: 'يصرخ|صراخ|صرخة|scream|shout', laugh: 'يضحك|ضحك|ضحكة|laugh', think: 'يفكر|تفكير|يتأمل|think|hmm',
-  angry: 'يغضب|غضب|يعصب|يزعل|angry', sad: 'يبكي|حزين|حزن|يتنهد|sad|cry', shock: 'يتفاجأ|صدمة|يصدم|ذهول|shock|gasp',
-  scared: 'يخاف|خوف|يرتجف|مرعوب|scared', serious: 'يجد|جاد|جدي|serious', mocking: 'يسخر|سخرية|يستهزئ|استهزاء|mock', sassy: 'يتباهى|ساخر|يغمز|sassy|smirk', excited: 'يحتفل|يتحمس|حماس|يقفز|excited|cheer'
-};
-const DIRECT = {};
-for (const [e, p] of Object.entries(DIRECT_RAW)) DIRECT[e] = new RegExp(NORM(p));
-function directive(inner) {
-  const t = NORM(inner);
-  for (const e of Object.keys(DIRECT)) if (DIRECT[e].test(t)) return e;
-  return null;
+/* ---------- المقاس ---------- */
+for (const [k, v] of Object.entries(Scene.ASPECTS)) $('aspect').add(new Option(k + (v.w > v.h ? ' أفقي' : v.w === v.h ? ' مربع' : ' عمودي'), k));
+function setAspect(k) {
+  const old = Scene.autoLayout(P.aspect); P.aspect = k; const nw = Scene.autoLayout(k), L = P.char.layout;
+  // نحافظ على تموضع المستخدم نسبياً: نحسب إزاحته عن الوضع التلقائي القديم ونطبّقها على الجديد
+  L.top = +(nw.top + (L.top - old.top)).toFixed(4); L.size = +(nw.size * (L.size / old.size)).toFixed(4);
+  fit(); renderBg(); renderProps(); placeChar(); renderTexts(); renderCapStyle(); syncLayoutCtl(); save();
 }
+bind('aspect', el => setAspect(el.value), 'change');
+bind('chkGuides', el => { $('lyGuides').hidden = !el.checked; }, 'change');
 
-const TONE_BIAS = [
-  [/ساخر/, { sassy: 1, laugh: .5 }], [/حماس/, { excited: 1 }],
-  [/هادئ/, { think: .7 }], [/هجومي/, { angry: .8, sassy: .7 }]
-];
-function toneBias(tone) { for (const [re, b] of TONE_BIAS) if (re.test(tone || '')) return b; return {}; }
-
-function hits(re, t, cap) { const m = t.match(re); return Math.min(m ? m.length : 0, cap); }
-function analyze(text, tone) {
-  const t = NORM(text), sc = {};
-  for (const e of Object.keys(LEX)) sc[e] = hits(LEX[e].s, t, 3) * 2 + hits(LEX[e].w, t, 3);
-  const add = (e, v) => sc[e] = (sc[e] || 0) + v;
-  if (/ه{3,}/.test(t)) add('laugh', 3);                       // هههههه
-  if (/(ا{3,}|ي{3,}|و{3,})/.test(t)) add('scream', 2.5);      // ياااا / آآآ
-  const ex = (t.match(/!/g) || []).length;
-  if (ex >= 1) { add('excited', .6); add('scream', .6); }
-  if (ex >= 2) add('scream', 1);
-  if (/[؟?]/.test(t)) add('think', 1.2);
-  if (/…|\.\.\./.test(t)) { add('think', .4); add('sad', .3); }
-  for (const [e, v] of Object.entries(toneBias(tone))) add(e, v);
-  let best = 'neutral', top = 1.5;
-  for (const e of Object.keys(EMOTIONS)) if ((sc[e] || 0) > top) { best = e; top = sc[e]; }
-  return { emotion: best, scores: sc };
+/* ---------- المشهد ---------- */
+const presetGrid = $('presetGrid');
+for (const [k, v] of Object.entries(Scene.PRESETS)) {
+  const b = document.createElement('button'); b.type = 'button'; b.className = 'preset'; b.dataset.k = k; b.innerHTML = Scene.PRESETS[k].build(180, 320) + '<span></span>'; b.lastChild.textContent = v.name;
+  b.onclick = () => { P.bg = { type: 'preset', preset: k }; renderBg(); syncBgCtl(); save(); }; presetGrid.append(b);
 }
-
-/* تنظيف النص المنطوق: نحذف عناوين المشاهد وملاحظات الأداء، ونبقي القصة فقط */
-/* يحول النص الكامل إلى مقاطع صوتية: العناوين وتعليمات الأداء لا تدخل إلى TTS */
-function parseScript(raw, tone) {
-  const out = [];
-  for (const row of raw.split(/\n+/)) {
-    const original = row.trim();
-    if (!original) continue;
-    // احصل على الانفعال من أي ملاحظة توجيهية قبل حذفها.
-    let forced = null;
-    original.replace(/\[([^\]]*)\]|\(([^)]*)\)|\*([^*]*)\*/g, (m, a, b, c) => {
-      const emo = directive(a ?? b ?? c ?? '');
-      if (emo) forced = emo;
-      return m;
-    });
-    let line = original;
-    // العناوين الواضحة تُحذف بالكامل حتى لو احتوت نصاً بعدها.
-    if (/^(?:#{1,6}\s*)?(?:🎬\s*)?(?:عنوان(?:\s+الحلقة)?|افتتاحية|البداية|المشهد(?:\s+(?:الأول|الثاني|الثالث|الرابع|الخامس|الأخير|\d+))?|تصعيد|الذروة|خاتمة|النهاية|مقدمة|تمهيد)\s*(?::|：|—|–|-).*$/u.test(line)) continue;
-    line = line.replace(/\[([^\]]*)\]|\(([^)]*)\)|\*([^*]*)\*/g, ' ');
-    line = line.replace(/^\s*#+\s*/, '');
-    line = line.replace(/^\s*(?:افتتاحية|البداية|المشهد(?:\s+\S+)?|تصعيد|الذروة|خاتمة|النهاية|مقدمة|تمهيد)\s*[:：—–-]\s*/u, '');
-    line = line.replace(/\p{Extended_Pictographic}️?/gu, '').replace(/ه{3,}/g, 'ها ها ها').replace(/\s+/g, ' ').trim();
-    if (!line || !/[\p{L}\p{N}]/u.test(line)) continue;
-    const sentences = [];
-    for (const sentence of line.split(/(?<=[.!؟?…])\s+/)) {
-      if (sentence.length <= 140) { sentences.push(sentence); continue; }
-      let cur = '';
-      for (const part of sentence.split(/(?<=[،,])\s*/)) {
-        if ((cur + part).length > 120 && cur) { sentences.push(cur); cur = part; }
-        else cur += (cur ? ' ' : '') + part;
-      }
-      if (cur) sentences.push(cur);
-    }
-    sentences.forEach((sentence, i) => {
-      const emotion = (i === 0 && forced) ? forced : analyze(sentence, tone).emotion;
-      out.push({ text: sentence, emotion, forced: i === 0 && !!forced, pause: /…$/.test(sentence) ? 550 : 260 });
-    });
-  }
-  return out;
-}
-
-/* ---------- 3) الأداء ---------- */
-// مقطع واحد: الوجه والجسم يتغيران قبل الكلام، وصوت الانفعال يطلع قبل/بعد الجملة حسب نوعه
-async function playSegment(seg, id) {
-  const E = EMOTIONS[seg.emotion] || EMOTIONS.neutral;
-  applyPose(seg.emotion); floatFx(seg.emotion); sfx(E.sfx);
-  startBeats();
-  await speak(seg.text, E.vocal, id);
-  if (id !== runId) return;
-  stopBeats();
-  await wait(seg.pause + (seg.emotion === 'shock' || seg.emotion === 'scream' ? 250 : 0));
-}
-function idle() { stopBeats(); applyPose('neutral'); }
-
-async function performScript(text, tone) {
-  cancelAll(); const id = runId;
-  const segs = parseScript(text, tone);
-  const box = $('narration'); box.hidden = false;
-  if (!segs.length) { $('segment').textContent = 'اكتب سيناريو أولاً.'; return; }
-  statusEl.textContent = 'يؤدي المشهد…';
-  await wait(90);                                            // Chrome يتجاهل speak() بعد cancel() مباشرة
-  for (let i = 0; i < segs.length; i++) {
-    if (id !== runId) return;
-    const s = segs[i], E = EMOTIONS[s.emotion];
-    $('segment').textContent = s.text; bubble.textContent = s.text;
-    $('progress').textContent = 'المقطع ' + (i + 1) + ' من ' + segs.length + ' · ' + E.emoji + ' ' + E.label + (s.forced ? ' (توجيه)' : '');
-    document.querySelectorAll('#reactmap .chip').forEach((c, k) => c.classList.toggle('now', k === i));
-    await playSegment(s, id);
-  }
-  if (id !== runId) return;
-  idle(); bubble.textContent = 'خلصنا!'; $('progress').textContent = 'اكتمل السرد الصوتي'; statusEl.textContent = 'جاهز';
-  document.querySelectorAll('#reactmap .chip.now').forEach(c => c.classList.remove('now'));
-}
-
-// تجربة سريعة لانفعال واحد (أزرار خريطة التفاعل + أزرار الشخصيات)
-function demo(emotion) {
-  cancelAll(); const id = runId;
-  applyPose(emotion); floatFx(emotion); sfx(EMOTIONS[emotion].sfx); startBeats();
-  setTimeout(() => { if (id === runId) idle(); }, 1800);
-}
-
-/* ---------- 4) الواجهة ---------- */
-let kind = 'story';
-document.querySelectorAll('.type').forEach(b => b.onclick = () => {
-  kind = b.dataset.type; document.querySelectorAll('.type').forEach(x => x.classList.toggle('active', x === b));
+function showBgOpt(type) { for (const t of ['preset', 'color', 'gradient', 'image']) $('bg' + t[0].toUpperCase() + t.slice(1)).hidden = t !== type; document.querySelectorAll('#bgTypes button').forEach(b => b.classList.toggle('on', b.dataset.bg === type)); }
+$('bgTypes').addEventListener('click', e => {
+  const b = e.target.closest('button[data-bg]'); if (!b) return; const t = b.dataset.bg; showBgOpt(t);
+  if (t === 'color') P.bg = { type: 'color', c1: $('bgC1').value }; else if (t === 'gradient') P.bg = { type: 'gradient', c1: $('bgG1').value, c2: $('bgG2').value, angle: +$('bgAng').value };
+  else if (t === 'preset') P.bg = { type: 'preset', preset: P.bg.preset || 'studio' }; else if (P.bg.type !== 'image') return;
+  renderBg(); syncBgCtl(); save();
 });
-document.querySelectorAll('.app-tab').forEach(b => b.onclick = () => {
-  document.querySelectorAll('.app-tab').forEach(x => x.classList.toggle('active', x === b));
-  document.querySelectorAll('.app-panel').forEach(x => x.hidden = x.id !== b.dataset.panel);
-});
+bind('bgC1', el => { P.bg = { type: 'color', c1: el.value }; renderBg(); save(); });
+const gradUpdate = () => { P.bg = { type: 'gradient', c1: $('bgG1').value, c2: $('bgG2').value, angle: +$('bgAng').value }; $('bgAngV').textContent = P.bg.angle; renderBg(); save(); };
+['bgG1', 'bgG2', 'bgAng'].forEach(id => bind(id, gradUpdate));
+$('bgPick').onclick = () => $('bgFile').click();
+bind('bgFile', async el => {
+  const f = el.files[0]; if (!f) return; try {
+    P.bg = { type: 'image', src: await Characters.fileToDataURL(f, 1600), fit: $('bgFit').value, dim: +$('bgDim').value / 100, blur: +$('bgBlur').value }; renderBg(); save();
+  } catch (e) { setStatus(e.message); } el.value = '';
+}, 'change');
+const imgUpdate = () => { if (P.bg.type !== 'image') return; P.bg.fit = $('bgFit').value; P.bg.dim = +$('bgDim').value / 100; P.bg.blur = +$('bgBlur').value; $('bgDimV').textContent = $('bgDim').value; $('bgBlurV').textContent = $('bgBlur').value; renderBg(); save(); };
+['bgFit', 'bgDim', 'bgBlur'].forEach(id => bind(id, imgUpdate));
+bind('chkDesk', el => { P.desk = el.checked; renderProps(); save(); }, 'change');
+function syncBgCtl() {
+  showBgOpt(P.bg.type); document.querySelectorAll('.preset').forEach(b => b.classList.toggle('on', P.bg.type === 'preset' && b.dataset.k === (P.bg.preset || 'studio')));
+  if (P.bg.type === 'color') $('bgC1').value = P.bg.c1 || '#101218';
+  if (P.bg.type === 'gradient') { $('bgG1').value = P.bg.c1; $('bgG2').value = P.bg.c2; $('bgAng').value = P.bg.angle; $('bgAngV').textContent = P.bg.angle; }
+  if (P.bg.type === 'image') { $('bgFit').value = P.bg.fit || 'cover'; $('bgDim').value = Math.round((P.bg.dim || 0) * 100); $('bgBlur').value = P.bg.blur || 0; $('bgDimV').textContent = $('bgDim').value; $('bgBlurV').textContent = $('bgBlur').value; }
+  $('chkDesk').checked = P.desk;
+}
 
-function renderMap() {
-  const map = $('reactmap'); if (!map) return;
-  const segs = parseScript($('script').value, $('tone').value);
-  map.replaceChildren();
-  segs.forEach(s => {
-    const E = EMOTIONS[s.emotion], b = document.createElement('button');
-    b.className = 'chip'; b.dataset.e = s.emotion; b.title = s.text;
-    b.innerHTML = '<span></span><small></small>';
-    b.firstChild.textContent = E.emoji + ' ' + E.label; b.lastChild.textContent = s.text;
-    b.onclick = () => demo(s.emotion);
-    map.append(b);
-  });
+/* ---------- الشخصية ---------- */
+function showCharMode() {
+  document.querySelectorAll('#charModes button').forEach(b => b.classList.toggle('on', b.dataset.mode === P.char.mode));
+  $('cmBuiltin').hidden = P.char.mode !== 'builtin'; $('cmSprite').hidden = P.char.mode !== 'sprite'; $('cmSvg').hidden = P.char.mode !== 'svg';
 }
-function showScript(text) {
-  $('script').value = text; $('scriptbox').hidden = false; $('narration').hidden = true; renderMap();
-}
-$('script').addEventListener('input', renderMap);
-$('tone').addEventListener('change', renderMap);
+$('charModes').addEventListener('click', e => { const b = e.target.closest('button[data-mode]'); if (!b) return; P.char.mode = b.dataset.mode; showCharMode(); applyChar(); save(); });
+const skinUpdate = () => { P.char.skin = { head: $('skHead').dataset.set ? $('skHead').value : undefined, line: $('skLine').dataset.set ? $('skLine').value : undefined, led: $('skLed').dataset.set ? $('skLed').value : undefined }; if (P.char.mode === 'builtin') Rig.setSkin({ head: P.char.skin.head, line: P.char.skin.line, led: P.char.skin.led }); save(); };
+['skHead', 'skLine', 'skLed'].forEach(id => bind(id, el => { el.dataset.set = '1'; skinUpdate(); }));
+bind('skHp', el => { P.char.headphones = el.checked; if (P.char.mode === 'builtin') Rig.setHeadphones(el.checked); save(); }, 'change');
+$('skReset').onclick = () => { P.char.skin = {}; ['skHead', 'skLine', 'skLed'].forEach(id => delete $(id).dataset.set); $('skHead').value = '#ffffff'; $('skLine').value = '#0b0a14'; $('skLed').value = '#4aa3ff'; Rig.setSkin({ head: null, line: null, led: null }); save(); };
 
-function makeScript(topic, type) {
-  topic = topic || 'موضوع ممتع نكتشفه معاً';
-  if (type === 'story') return 'اسمعوا القصة هذي عن ' + topic + '.\n\nالبداية: كل شيء كان يبدو عادياً، ولا أحد كان يتوقع أن تتحول الأمور بهذا الشكل. بس استنوا شوي… لأن التفاصيل القادمة هي اللي تغيّر القصة.\n\n[يتفاجأ] وفجأة بدأت المفاجآت تظهر واحدة وراء الثانية، وكل ما ظنّوا أن الموضوع انتهى، طلع في شيء جديد!\n\n[يصرخ] يا جماعة، ما كان أحد مصدق اللي شافه!\n\n[يفكر] أما النهاية؟ فهي الجزء اللي لازم تسمعوه للآخر. شو رأيكم، كان ممكن تتصرفوا بطريقة مختلفة؟';
-  if (type === 'commentary') return 'خلّونا نحلّل ' + topic + '.\n\nبصراحة، في تفاصيل هنا تستحق الوقفة. خلّونا نفصل اللي صار ونشوف وين كانت المفاجأة.\n\n[يتفاجأ] لحظة، هذا اللي صار فعلاً؟\n\n[يفكر] شو رأيكم أنتم؟';
-  return 'يا جماعة خلّونا نشوف ' + topic + '!\n\n[يتفاجأ] أنا مو مستوعب اللي صار بصراحة…\n\n[يضحك] هههه خلّونا نشوف المشهد ونحكم!';
+const SLOTS = [...Characters.EMOS, 'talk'];
+function renderSlots() {
+  const g = $('spGrid'); g.replaceChildren();
+  for (const e of SLOTS) {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'spslot' + (P.char.images[e] ? ' has' : ''); b.dataset.slot = e;
+    if (P.char.images[e]) { const im = document.createElement('img'); im.src = P.char.images[e]; im.alt = ''; b.append(im); }
+    const sp = document.createElement('span'); sp.textContent = (e === 'talk' ? '👄 ' : (EMO_META[e][0] + ' ')) + Characters.EMO_LABEL[e]; b.append(sp); g.append(b);
+  }
 }
-$('draft').onclick = () => { showScript(makeScript($('topic').value.trim(), kind)); bubble.textContent = 'جهزت السيناريو. عدّله أو اضغط عرض السرد.'; applyPose('think'); setTimeout(idle, 1200); };
-$('copy').onclick = () => navigator.clipboard.writeText($('script').value);
+let slotTarget = null;
+$('spGrid').addEventListener('click', e => { const b = e.target.closest('.spslot'); if (!b) return; slotTarget = b.dataset.slot; const inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'image/*'; inp.onchange = async () => { if (inp.files[0]) await addSprites([[inp.files[0], slotTarget]]); }; inp.click(); });
+$('spPickMany').onclick = () => $('spFiles').click();
+async function addSprites(pairs) {
+  let skipped = 0;
+  for (const [file, forced] of pairs) {
+    let slot = forced || Characters.guessEmotion(file.name);
+    if (!slot) { slot = !P.char.images.neutral ? 'neutral' : null; }
+    if (!slot) { skipped++; continue; }
+    try { P.char.images[slot] = await Characters.fileToDataURL(file, 1024); } catch (e) { skipped++; }
+  }
+  P.char.mode = 'sprite'; showCharMode(); renderSlots(); applyChar(); save();
+  setStatus(skipped ? `تم رفع الصور. تعذّر تحديد انفعال ${skipped} ملف/ملفات، اضغط الخانة المناسبة لرفعها يدوياً.` : 'تم رفع صور الشخصية');
+}
+bind('spFiles', async el => { await addSprites([...el.files].map(f => [f, null])); el.value = ''; }, 'change');
+$('spClear').onclick = () => { P.char.images = {}; renderSlots(); applyChar(); save(); };
+$('svPick').onclick = () => $('svFile').click();
+bind('svFile', async el => {
+  const f = el.files[0]; if (!f) return; el.value = '';
+  try { const text = await f.text(); Characters.sanitizeSvg(text); P.char.svgText = text; P.char.mode = 'svg'; showCharMode(); applyChar(); save(); }
+  catch (e) { setStatus('ملف SVG غير صالح: ' + e.message); }
+}, 'change');
 
-// ذاكرة تفضيلات محلية: تستخدم التقييمات لتوجيه صياغة القصص القادمة.
-const STYLE_MEMORY_KEY = 'live-story-style-memory-v1';
-function readStyleMemory() {
-  try { return JSON.parse(localStorage.getItem(STYLE_MEMORY_KEY) || '{"good":[],"bad":[]}'); }
-  catch (_) { return { good: [], bad: [] }; }
+function syncLayoutCtl() {
+  const L = P.char.layout, auto = Scene.autoLayout(P.aspect);
+  $('lySize').value = Math.round(L.size / auto.size * 100); $('lySizeV').textContent = $('lySize').value; $('lyX').value = Math.round(L.cx * 100); $('lyY').value = Math.round(L.top * 100); $('lyFlip').checked = !!L.flip;
 }
-function saveStyleFeedback(kind) {
-  const memory = readStyleMemory();
-  const sample = $('script').value.slice(0, 420);
-  const target = kind === 'good' ? memory.good : memory.bad;
-  target.unshift(sample);
-  target.splice(4);
-  localStorage.setItem(STYLE_MEMORY_KEY, JSON.stringify(memory));
-  $('feedbackStatus').textContent = kind === 'good'
-    ? 'تم حفظ تفضيلك: حافظ على هذا الأسلوب.'
-    : 'تم حفظ ملاحظتك: قلّل التصنّع وغيّر الأسلوب في المرات القادمة.';
-}
-$('storyGood').onclick = () => saveStyleFeedback('good');
-$('storyBad').onclick = () => saveStyleFeedback('bad');
+bind('lySize', el => { const L = P.char.layout, auto = Scene.autoLayout(P.aspect), old = L.size; L.size = +(auto.size * el.value / 100).toFixed(4); L.top += (old - L.size) * .8 * A().w / A().h; $('lySizeV').textContent = el.value; placeChar(); syncLayoutCtl(); save(); });
+bind('lyX', el => { P.char.layout.cx = el.value / 100; placeChar(); save(); });
+bind('lyY', el => { P.char.layout.top = el.value / 100; placeChar(); save(); });
+bind('lyFlip', el => { P.char.layout.flip = el.checked; placeChar(); save(); }, 'change');
+$('lyAuto').onclick = () => { const a = Scene.autoLayout(P.aspect); Object.assign(P.char.layout, { cx: .5, top: a.top, size: a.size }); if (!P.desk) { P.char.layout.top = +(1 - a.size * A().w / A().h).toFixed(4); } placeChar(); syncLayoutCtl(); save(); };
 
-async function generateWithAI() {
-  const topic = $('topic').value.trim();
-  if (!topic) { statusEl.textContent = 'اكتب موضوع القصة أولاً.'; $('topic').focus(); return; }
-  const memory = readStyleMemory();
-  const preferences = [
-    memory.good.length ? 'نماذج أعجبت المستخدم (استلهم الإيقاع فقط): ' + memory.good.join(' | ') : '',
-    memory.bad.length ? 'نماذج لم تعجب المستخدم؛ تجنب أسلوبها وسبب التصنّع فيها: ' + memory.bad.join(' | ') : ''
-  ].filter(Boolean).join('\n');
-  const button = $('funStory');
-  button.disabled = true; button.textContent = '⏳ الذكاء الاصطناعي يكتب القصة…';
-  statusEl.textContent = 'يكتب نصاً جديداً ويفهم نبرته…';
+function download(name, text) { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type: 'application/json' })); a.download = name; document.body.append(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500); }
+const safeName = s => (s || 'live').replace(/[^\p{L}\p{N}_-]+/gu, '-').slice(0, 40) || 'live';
+function cleanImages(obj) { const out = {}; for (const [k, v] of Object.entries(obj || {})) if (typeof v === 'string' && v.startsWith('data:image/')) out[k] = v; return out; }
+$('pkExport').onclick = () => download(safeName(P.name) + '.livechar.json', JSON.stringify({ kind: 'live-character-pack', v: 1, char: { mode: P.char.mode, skin: P.char.skin, headphones: P.char.headphones, images: P.char.images, svgText: P.char.svgText } }));
+$('pkImport').onclick = () => $('pkFile').click();
+bind('pkFile', async el => {
+  const f = el.files[0]; if (!f) return; el.value = '';
   try {
-    const response = await fetch('/api/generate', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ topic, kind, tone: $('tone').value, preferences })
-    });
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.detail || 'فشل إنشاء النص.');
-    showScript(data.script);
-    bubble.textContent = 'النص جاهز. راجعه ثم شغّل السرد.';
-    $('feedbackBox').hidden = false;
-    $('feedbackStatus').textContent = 'قيّم النتيجة حتى تتعلم الأداة ذوقك في الكتابة.';
-    statusEl.textContent = 'تم إنشاء نص بالذكاء الاصطناعي';
-  } catch (error) {
-    statusEl.textContent = error.message;
-    bubble.textContent = 'تعذّر إنشاء النص حالياً.';
-  } finally {
-    button.disabled = false; button.textContent = '✨ إنشاء قصة بالذكاء الاصطناعي';
-  }
+    const d = JSON.parse(await f.text()); if (d.kind !== 'live-character-pack' || !d.char) throw new Error('هذا ليس ملف حزمة شخصية');
+    if (d.char.svgText) Characters.sanitizeSvg(d.char.svgText);
+    Object.assign(P.char, { mode: ['builtin', 'sprite', 'svg'].includes(d.char.mode) ? d.char.mode : 'builtin', skin: d.char.skin || {}, headphones: d.char.headphones !== false, images: cleanImages(d.char.images), svgText: d.char.svgText || '' });
+    syncAll(); applyChar(); save(); setStatus('تم استيراد الشخصية');
+  } catch (e) { setStatus('تعذّر الاستيراد: ' + e.message); }
+}, 'change');
+
+/* ---------- النصوص والترجمة ---------- */
+function chooseText(id) { selText = id; renderTextList(); renderTexts(); syncTextCtl(); openTab('texts'); }
+function renderTextList() {
+  const l = $('txtList'); l.replaceChildren();
+  for (const t of P.texts) { const b = document.createElement('button'); b.type = 'button'; b.className = t.id === selText ? 'on' : ''; b.textContent = t.text || '(فارغ)'; b.onclick = () => chooseText(t.id); l.append(b); }
+  $('txtCtl').hidden = !P.texts.some(t => t.id === selText);
 }
-$('funStory').onclick = generateWithAI;
-
-$('perform').onclick = () => { ac(); performScript($('script').value, $('tone').value); };   // ac(): تفعيل الصوت بنقرة المستخدم
-$('stop').onclick = () => { cancelAll(); idle(); statusEl.textContent = 'جاهز'; $('progress').textContent = 'تم الإيقاف'; document.querySelectorAll('#reactmap .chip.now').forEach(c => c.classList.remove('now')); };
-
-/* ---------- Live: تعليقات المشاهدين ---------- */
-const MODES = ['Funny', 'Sassy', 'Serious', 'Furious', 'Freaked Out', 'Mocking'];
-const MODE_EMO = { Funny: 'laugh', Sassy: 'sassy', Serious: 'serious', Furious: 'angry', 'Freaked Out': 'scared', Mocking: 'mocking' };
-let current = 'Funny';
-const modes = $('modes');
-MODES.forEach(m => {
-  const b = document.createElement('button'); b.textContent = m;
-  b.onclick = () => {
-    current = m; ac(); demo(MODE_EMO[m]); bubble.textContent = 'تم تغيير الشخصية: ' + m;
-    document.querySelectorAll('#modes button').forEach(x => x.classList.toggle('active', x.textContent === m));
-    fetch('/api/mode', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mode: m }) }).catch(() => {});
-  };
-  modes.append(b);
-});
-
-const REPLIES = {
-  laugh:   ['أضحك معك ولا على مستوى الثقة بالتعليق؟', 'هههه والله ضحكتني! كمّل كمّل!'],
-  scream:  ['يا ساتر! ليش كل هذا الصراخ في التعليقات؟!', 'لحظة لحظة، خففوا علي!'],
-  angry:   ['وصل النقد يا ناقد القرن. عندك ملاحظة مفيدة ولا خلصنا من فقرة الصياح؟'],
-  think:   ['سؤال محترم… خليني أفكر.'],
-  shock:   ['لحظة لحظة! مين وافق على هذا المشهد؟ أنا كنت جاي أعلّق مو أتعالج!'],
-  sad:     ['يا حبيبي ليش هالحزن… خلينا نرجع نضحك شوي.'],
-  scared:  ['لا تخوفوني! أنا أصلاً كنت جاي أرتاح!'],
-  excited: ['أخيراً تعليق يرفع المعنويات… لا تخربها وتطلب أغنية!'],
-  sassy:   ['يا سلام على التعليق… داخل علينا بثقة وكأنك دفعت إيجار الاستوديو!'],
-  neutral: ['يا سلام على التعليق… داخل علينا بثقة وكأنك دفعت إيجار الاستوديو!']
-};
-function reactTo(msg) {
-  let emotion = analyze(msg).emotion;
-  let reply = REPLIES[emotion][Math.floor(Math.random() * REPLIES[emotion].length)];
-  if (emotion === 'neutral') emotion = 'sassy';
-  if (emotion === 'think') reply += ' ' + msg;
-  if (current === 'Furious') { emotion = 'angry'; reply = 'يا حبيبي ' + reply + ' خفّ علينا شوي!'; }
-  else if (current === 'Serious') { emotion = 'serious'; reply = 'خلينا نركز: ' + msg + '. هذه نقطة تستحق نقاشاً فعلاً.'; }
-  else if (current === 'Mocking') { emotion = 'mocking'; reply = 'واو… ' + msg + '. استغرق منك وقت طويل لتكتب هذه التحفة؟'; }
-  else if (current === 'Freaked Out') { emotion = 'scared'; }
-  return { emotion, reply };
+const curText = () => P.texts.find(t => t.id === selText);
+function syncTextCtl() {
+  const t = curText(); if (!t) return; $('txtVal').value = t.text; $('txtColor').value = t.color; $('txtFont').value = t.font; $('txtSize').value = t.size; $('txtSizeV').textContent = t.size; $('txtX').value = Math.round(t.x * 100); $('txtY').value = Math.round(t.y * 100); $('txtGlow').checked = !!t.glow;
 }
-function handleComment(msg) {
-  if (!msg.trim() || !feed) return;
-  const { emotion, reply } = reactTo(msg);
-  bubble.textContent = reply;
-  const item = document.createElement('div'); item.className = 'feeditem';
-  item.innerHTML = '<div class="viewer"></div><div class="reply"></div><div class="emotion"></div>';
-  item.querySelector('.viewer').textContent = '💬 ' + msg;
-  item.querySelector('.reply').textContent = 'Live: ' + reply;
-  item.querySelector('.emotion').textContent = 'ردة الفعل: ' + EMOTIONS[emotion].emoji + ' ' + EMOTIONS[emotion].label;
-  feed.replaceChildren(item); feed.scrollTop = feed.scrollHeight;
-  ac(); cancelAll();                                         // يرد بصوته مع التفاعل
-  const id = runId;
-  playSegment({ text: reply, emotion, pause: 200 }, id).then(() => { if (id === runId) idle(); });
-  fetch('/api/chat/mock', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: msg }) }).catch(() => {});
+$('txtAdd').onclick = () => { const t = { id: 't' + Date.now(), text: 'نص جديد', x: .5, y: .5, size: 6, color: '#ffffff', font: 'Cairo', glow: false }; P.texts.push(t); chooseText(t.id); save(); };
+bind('txtVal', el => { const t = curText(); if (t) { t.text = el.value; renderTextList(); renderTexts(); save(); } });
+bind('txtColor', el => { const t = curText(); if (t) { t.color = el.value; renderTexts(); save(); } });
+bind('txtFont', el => { const t = curText(); if (t) { t.font = el.value; renderTexts(); save(); } }, 'change');
+bind('txtSize', el => { const t = curText(); if (t) { t.size = +el.value; $('txtSizeV').textContent = el.value; renderTexts(); save(); } });
+bind('txtX', el => { const t = curText(); if (t) { t.x = el.value / 100; renderTexts(); save(); } });
+bind('txtY', el => { const t = curText(); if (t) { t.y = el.value / 100; renderTexts(); save(); } });
+bind('txtGlow', el => { const t = curText(); if (t) { t.glow = el.checked; renderTexts(); save(); } }, 'change');
+$('txtDel').onclick = () => { P.texts = P.texts.filter(t => t.id !== selText); selText = null; renderTextList(); renderTexts(); save(); };
+const capUpdate = () => { Object.assign(P.caps, { on: $('capOn').checked, size: +$('capSize').value, y: +$('capY').value, color: $('capColor').value, hl: $('capHl').value, box: $('capBox').checked }); renderCapStyle(); save(); };
+['capOn', 'capSize', 'capY', 'capColor', 'capHl', 'capBox'].forEach(id => bind(id, capUpdate, id === 'capOn' || id === 'capBox' ? 'change' : 'input'));
+
+/* ---------- الصوت ---------- */
+function refreshVoiceList() {
+  const sel = $('voiceSel'), list = Voice.listVoices(), cur = P.voice.key; sel.replaceChildren();
+  if (!list.length) sel.add(new Option('لا توجد أصوات عربية على الجهاز (ستعمل الحركة بدون صوت)', ''));
+  list.forEach(v => sel.add(new Option(v.label, v.key)));
+  if (list.length) { sel.value = list.some(v => v.key === cur) ? cur : list[0].key; P.voice.key = sel.value; }
+  const info = $('voiceInfo');
+  if (Voice.serverOn) { info.className = 'banner ok'; info.textContent = 'صوت عصبي من الخادم متاح. لو تعذّر وقت التشغيل يرجع تلقائياً لصوت المتصفح.'; }
+  else if (list.length) { info.className = 'banner warn'; info.textContent = 'تستخدم الآن صوت المتصفح، وجودته تعتمد على جهازك. لصوت أطبيعي أكثر فعّل صوتاً عصبياً على الخادم (ELEVENLABS_API_KEY مع ELEVENLABS_VOICE_ID، أو edge-tts).'; }
+  else { info.className = 'banner warn'; info.textContent = 'جهازك لا يحوي صوتاً عربياً. ثبّت صوتاً عربياً من إعدادات النظام (تحويل النص إلى كلام)، أو فعّل صوت الخادم.'; }
 }
-const send = $('send'), chat = $('chat');
-send.onclick = () => { handleComment(chat.value); chat.value = ''; };
-chat.addEventListener('keydown', e => { if (e.key === 'Enter') send.click(); });
+bind('voiceSel', el => { P.voice.key = el.value; save(); }, 'change');
+bind('rate', el => { P.voice.rate = +el.value; $('rateV').textContent = (+el.value).toFixed(2); save(); });
+$('voiceTest').onclick = async () => { Voice.unlock(); Characters.pose('neutral'); Characters.speaking(true); await Voice.speak('أهلاً بكم، هذا صوتي في الاستوديو. جرّبوا السرعة التي تناسب القصة.', { voice: P.voice.key, rate: P.voice.rate, onLevel: v => Characters.level(v) }); Characters.speaking(false); };
+if ('speechSynthesis' in window) speechSynthesis.onvoiceschanged = refreshVoiceList;
 
-fetch('/api/state').then(r => r.json()).then(d => {
-  current = d.mode || current;
-  statusEl.textContent = d.ai_ready
-    ? 'الخادم متصل · إنشاء القصص بالذكاء الاصطناعي جاهز'
-    : 'الخادم متصل، لكن إنشاء القصص يحتاج إعداد مفتاح OPENAI_API_KEY في Render';
-}).catch(() => { statusEl.textContent = 'تعذّر الاتصال بالخادم'; });
+/* ---------- مزامنة الواجهة مع المشروع ---------- */
+function syncAll() {
+  $('projName').value = P.name; $('aspect').value = P.aspect; showCharMode(); syncBgCtl(); syncLayoutCtl(); renderSlots(); renderTextList(); if (!selText && P.texts[0]) selText = P.texts[0].id; syncTextCtl();
+  $('skHead').value = P.char.skin.head || '#ffffff'; $('skLine').value = P.char.skin.line || '#0b0a14'; $('skLed').value = P.char.skin.led || '#4aa3ff'; $('skHp').checked = P.char.headphones !== false;
+  const c = P.caps; $('capOn').checked = c.on; $('capSize').value = c.size; $('capY').value = c.y; $('capColor').value = c.color; $('capHl').value = c.hl; $('capBox').checked = c.box;
+  $('rate').value = P.voice.rate; $('rateV').textContent = (+P.voice.rate).toFixed(2); refreshVoiceList();
+  if (typeof syncStoryCtl === 'function') syncStoryCtl();
+}
+function renderAll() { fit(); renderBg(); renderProps(); applyChar(); renderTexts(); renderCapStyle(); setCaption('', []); if (typeof renderTimeline === 'function') renderTimeline(); }
 
+/* ---------- مشروع: جديد / حفظ / فتح ---------- */
+bind('projName', el => { P.name = el.value; save(); });
+$('btnSave').onclick = () => download(safeName(P.name) + '.livestudio.json', JSON.stringify(P));
+$('btnOpen').onclick = () => $('fileOpen').click();
+bind('fileOpen', async el => {
+  const f = el.files[0]; if (!f) return; el.value = '';
+  try { loadProject(JSON.parse(await f.text())); setStatus('تم فتح المشروع'); } catch (e) { setStatus('ملف مشروع غير صالح: ' + e.message); }
+}, 'change');
+function loadProject(d) {
+  if (!d || d.kind !== 'live-studio-project') throw new Error('هذا ليس ملف مشروع Live Studio');
+  const base = newProject(); if (d.char && d.char.svgText) Characters.sanitizeSvg(d.char.svgText);
+  P = { ...base, ...d, char: { ...base.char, ...(d.char || {}), images: cleanImages(d.char && d.char.images), layout: { ...base.char.layout, ...((d.char || {}).layout || {}) } }, caps: { ...base.caps, ...(d.caps || {}) }, voice: { ...base.voice, ...(d.voice || {}) }, script: { ...base.script, ...(d.script || {}) } };
+  if (!Scene.ASPECTS[P.aspect]) P.aspect = '9:16';
+  if (P.bg.type === 'image' && !String(P.bg.src || '').startsWith('data:image/')) P.bg = { type: 'preset', preset: 'studio' };
+  if (!Array.isArray(P.texts)) P.texts = base.texts; selText = null; stopPlayback && stopPlayback();
+  syncAll(); renderAll(); save();
+}
+$('btnNew').onclick = () => { if (confirm('بدء مشروع جديد؟ لن يُحفظ ما لم تنزّله بزر «حفظ».')) { P = newProject(); selText = null; stopPlayback && stopPlayback(); syncAll(); renderAll(); save(); } };
 
-/* ---------- Live Studio text overlay editor ---------- */
-(() => {
-  const canvas = $('studioCanvas'), layer = $('brandLayer');
-  if (!canvas || !layer) return;
-  const STORE = 'live-studio-text-overlays-v1';
-  const controls = $('studioTextControls'), list = $('studioTextList');
-  const fields = {
-    text: $('studioTextValue'), color: $('studioTextColor'), size: $('studioTextSize'),
-    x: $('studioTextX'), y: $('studioTextY'), font: $('studioTextFont'), glow: $('studioTextGlow')
-  };
-  let items = [], selected = null, drag = null, nextId = 1;
-  const defaults = () => ({id:nextId++,text:'اسم قناتك',color:'#ff5bd8',size:28,x:8,y:8,font:'system-ui',glow:true});
-  function persist(){try{localStorage.setItem(STORE,JSON.stringify(items));}catch(_){}}
-  function load(){
-    try{
-      const saved=localStorage.getItem(STORE);
-      if(saved===null){const initial=defaults();initial.text='LIVE';items=[initial];}
-      else {const parsed=JSON.parse(saved);if(Array.isArray(parsed))items=parsed.filter(x=>x&&typeof x.text==='string').map(x=>({...defaults(),...x}));}
-    } catch(_){items=[];}
-    nextId=items.reduce((m,x)=>Math.max(m,Number(x.id)||0),0)+1;
-  }
-  function chosen(){return items.find(x=>x.id===selected)||null;}
-  function paint(){
-    layer.replaceChildren();
-    items.forEach(item=>{
-      const el=document.createElement('div');el.className='studio-brand-text'+(item.id===selected?' selected':'');
-      el.textContent=item.text;el.contentEditable='false';el.setAttribute('role','textbox');el.setAttribute('aria-label','نص قابل للتحرير: '+item.text);el.title='انقر مرتين لتحرير النص مباشرة';el.style.left=item.x+'%';el.style.top=item.y+'%';el.style.color=item.color;
-      el.style.fontSize=item.size+'px';el.style.fontFamily=item.font;
-      el.style.textShadow=item.glow?'0 0 5px currentColor,0 0 13px currentColor':'none';
-      el.dataset.id=item.id;
-      el.addEventListener('dblclick',e=>{
-        e.preventDefault();selected=item.id;sync();
-        el.contentEditable='true';el.classList.add('editing');el.focus();
-        const range=document.createRange();range.selectNodeContents(el);const selection=window.getSelection();selection.removeAllRanges();selection.addRange(range);
-      });
-      el.addEventListener('input',()=>{item.text=el.textContent;fields.text.value=item.text;persist();list.querySelectorAll('button').forEach((node,index)=>{if(items[index]?.id===item.id)node.textContent=item.text||'نص فارغ';});});
-      el.addEventListener('blur',()=>{el.contentEditable='false';el.classList.remove('editing');item.text=el.textContent;sync();paint();persist();});
-      el.addEventListener('pointerdown',e=>{
-        if(el.isContentEditable)return;
-        e.preventDefault();selected=item.id;const rect=canvas.getBoundingClientRect();
-        drag={id:item.id,dx:e.clientX-rect.left-(item.x/100*rect.width),dy:e.clientY-rect.top-(item.y/100*rect.height)};
-        el.setPointerCapture(e.pointerId);sync();layer.querySelectorAll('.studio-brand-text').forEach(node=>node.classList.toggle('selected',Number(node.dataset.id)===selected));list.querySelectorAll('button').forEach((node,index)=>node.classList.toggle('active',items[index]?.id===selected));
-      });
-      el.addEventListener('pointermove',e=>{
-        if(!drag||drag.id!==item.id)return;const rect=canvas.getBoundingClientRect();
-        item.x=Math.round(clamp((e.clientX-rect.left-drag.dx)/rect.width*100,0,100));
-        item.y=Math.round(clamp((e.clientY-rect.top-drag.dy)/rect.height*100,0,100));
-        fields.x.value=item.x;fields.y.value=item.y;el.style.left=item.x+'%';el.style.top=item.y+'%';
-      });
-      el.addEventListener('pointerup',()=>{drag=null;persist();});
-      el.addEventListener('pointercancel',()=>{drag=null;persist();});
-      layer.append(el);
-    });
-    list.replaceChildren();
-    items.forEach(item=>{
-      const b=document.createElement('button');b.type='button';b.textContent=item.text||'نص فارغ';
-      b.classList.toggle('active',item.id===selected);b.onclick=()=>{selected=item.id;sync();paint();};list.append(b);
-    });
-    controls.hidden=!chosen();
-  }
-  function sync(){
-    const item=chosen();controls.hidden=!item;if(!item)return;
-    fields.text.value=item.text;fields.color.value=item.color;fields.size.value=item.size;
-    fields.x.value=item.x;fields.y.value=item.y;fields.font.value=item.font;
-    fields.glow.checked=!!item.glow;$('studioTextSizeLabel').textContent=item.size;
-  }
-  function update(key,value){
-    const item=chosen();if(!item)return;item[key]=value;
-    if(key==='size')$('studioTextSizeLabel').textContent=value;
-    paint();persist();sync();
-  }
-  $('addStudioText').onclick=()=>{const item=defaults();items.push(item);selected=item.id;sync();paint();persist();fields.text.focus();fields.text.select();};
-  $('saveStudioText').onclick=()=>{persist();$('saveStudioText').textContent='تم الحفظ ✓';setTimeout(()=>$('saveStudioText').textContent='حفظ التصميم',1300);};
-  $('exportStudioLayout').onclick=()=>{
-    persist();const payload={format:'live-studio-layout',version:1,items};
-    const blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
-    const url=URL.createObjectURL(blob);const a=document.createElement('a');
-    a.href=url;a.download='studio-layout.json';a.click();URL.revokeObjectURL(url);
-  };
-  $('importStudioLayoutButton').onclick=()=>$('importStudioLayout').click();
-  $('importStudioLayout').onchange=async e=>{
-    const file=e.target.files?.[0];if(!file)return;
-    try{
-      const data=JSON.parse(await file.text());
-      const incoming=Array.isArray(data)?data:data.items;
-      if(!Array.isArray(incoming)||incoming.length>30)throw new Error('ملف التصميم غير صالح أو يحتوي عناصر كثيرة.');
-      items=incoming.filter(x=>x&&typeof x.text==='string').map(x=>({
-        id:nextId++,text:x.text.slice(0,48),color:/^#[0-9a-f]{6}$/i.test(x.color)?x.color:'#ff5bd8',
-        size:clamp(Number(x.size)||28,12,64),x:clamp(Number(x.x)||0,0,100),y:clamp(Number(x.y)||0,0,100),
-        font:['system-ui','Arial, sans-serif','Tahoma, sans-serif','Georgia, serif','monospace'].includes(x.font)?x.font:'system-ui',
-        glow:x.glow!==false
-      }));
-      selected=items[0]?.id??null;sync();paint();persist();statusEl.textContent='تم استيراد ملف الاستوديو القابل للتعديل.';
-    }catch(err){statusEl.textContent=err.message||'تعذّر قراءة ملف التصميم.';}
-    e.target.value='';
-  };
-
-  $('removeStudioText').onclick=()=>{items=items.filter(x=>x.id!==selected);selected=items.length?items[items.length-1].id:null;sync();paint();persist();};
-  fields.text.oninput=()=>update('text',fields.text.value);
-  fields.color.oninput=()=>update('color',fields.color.value);
-  fields.size.oninput=()=>update('size',Number(fields.size.value));
-  fields.x.oninput=()=>update('x',Number(fields.x.value));
-  fields.y.oninput=()=>update('y',Number(fields.y.value));
-  fields.font.onchange=()=>update('font',fields.font.value);
-  fields.glow.onchange=()=>update('glow',fields.glow.checked);
-  load();if(items.length)selected=items[0].id;sync();paint();
+/* ---------- إقلاع ---------- */
+(async function boot() {
+  try { const raw = await DB.get('autosave'); if (raw) { const d = JSON.parse(raw); if (d && d.kind === 'live-studio-project') { const base = newProject(); P = { ...base, ...d, char: { ...base.char, ...d.char, images: cleanImages(d.char && d.char.images), layout: { ...base.char.layout, ...((d.char || {}).layout || {}) } }, caps: { ...base.caps, ...d.caps }, voice: { ...base.voice, ...d.voice }, script: { ...base.script, ...d.script } }; if (!Scene.ASPECTS[P.aspect]) P.aspect = '9:16'; } } } catch (e) { /* مشروع جديد */ }
+  await Voice.init(); syncAll(); renderAll(); window.addEventListener('resize', fit); setTimeout(fit, 60);
+  document.fonts && document.fonts.ready.then(() => { renderTexts(); });
 })();

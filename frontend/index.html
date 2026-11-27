@@ -1,91 +1,216 @@
 <!doctype html>
-<html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Live Studio</title><link rel="stylesheet" href="/style.css?v=shared-studio-editor-20261126"></head>
-<body><main class="studio">
-<header class="head"><div><h1>Live <span class="pill">STUDIO</span></h1><p>استوديو الشخصية العربية</p></div></header>
-<nav class="app-tabs"><button class="app-tab active" data-panel="videoPanel">🎬 Video Making</button><button class="app-tab" data-panel="livePanel">🔴 Live</button></nav>
-
-<section class="shared-studio" aria-label="معاينة الاستوديو المشتركة">
-  <div class="shared-studio-title"><h2>معاينة الاستوديو</h2><span>تظهر في البث وصناعة الفيديو</span></div>
-      <div class="preview live-preview">
-        <div class="previewhead">معاينة الشخصية داخل الاستوديو</div>
-        <div class="studio-canvas" id="studioCanvas">
-          <div class="brand-layer" id="brandLayer" aria-label="نصوص الاستوديو"></div>
-          <div class="character" id="character"><div class="bubble" id="bubble">اختر قصة وسأرويها!</div></div>
-        </div>
-        <div class="status" id="status">جاهز</div>
-      </div>
-
-      <section class="text-editor" aria-label="محرر نصوص الاستوديو">
-        <div class="text-editor-head"><h3>محرر نصوص الاستوديو</h3><span class="hint">أضف اسم القناة أو أي عبارة تظهر خلف الشخصية</span></div>
-        <div class="text-editor-actions">
-          <button id="addStudioText" type="button" class="primary">＋ إضافة نص</button>
-          <button id="saveStudioText" type="button">حفظ التصميم</button>
-          <button id="exportStudioLayout" type="button">تصدير ملف قابل للتعديل</button>
-          <button id="importStudioLayoutButton" type="button">استيراد ملف</button>
-          <input id="importStudioLayout" type="file" accept=".json,application/json" hidden>
-        </div>
-        <div id="studioTextList" class="studio-text-list"></div>
-        <div id="studioTextControls" class="studio-text-controls" hidden>
-          <label for="studioTextValue">النص المحدد (يمكن تحريره هنا أو بالنقر مرتين على النص في المعاينة)</label>
-          <input id="studioTextValue" maxlength="48" placeholder="مثلاً: SLINGO LIVE">
-          <div class="studio-control-grid">
-            <div><label for="studioTextColor">اللون</label><input id="studioTextColor" type="color" value="#ff5bd8"></div>
-            <div><label for="studioTextSize">حجم الخط <output id="studioTextSizeLabel">28</output>px</label><input id="studioTextSize" type="range" min="12" max="64" value="28"></div>
-            <div><label for="studioTextX">الموقع الأفقي</label><input id="studioTextX" type="range" min="0" max="100" value="8"></div>
-            <div><label for="studioTextY">الموقع العمودي</label><input id="studioTextY" type="range" min="0" max="100" value="8"></div>
-          </div>
-          <label for="studioTextFont">نوع الخط</label>
-          <select id="studioTextFont"><option value="system-ui">افتراضي</option><option value="Arial, sans-serif">Arial</option><option value="Tahoma, sans-serif">Tahoma</option><option value="Georgia, serif">Georgia</option><option value="monospace">Monospace</option></select>
-          <label class="glow-option"><input id="studioTextGlow" type="checkbox" checked> تأثير توهج Neon</label>
-          <button id="removeStudioText" type="button" class="stop">حذف النص المحدد</button>
-        </div>
-        <p class="hint">يمكنك سحب النص مباشرة داخل معاينة الاستوديو لتغيير مكانه. التعديلات تُحفظ على هذا الجهاز.</p>
-      </section>
-
-
-</section>
-
-
-<section class="workspace">
-  <div class="side">
-    <section id="videoPanel" class="app-panel editor">
-      <h2>Video Making</h2>
-      <div class="types"><button class="type active" data-type="story">قصّة</button><button class="type" data-type="commentary">تعليق</button><button class="type" data-type="reaction">ردّة فعل</button></div>
-      <label>الموضوع أو رابط القصة</label>
-      <textarea id="topic" rows="3" placeholder="مثلاً: قصة أغرب عملية سرقة فاشلة…"></textarea>
-      <label>نبرة الشخصية</label>
-      <select id="tone"><option>ساخر وخفيف</option><option>حماسي</option><option>هادئ وقصصي</option><option>هجومي كوميدي</option></select>
-      <button id="funStory" class="primary">✨ إنشاء قصة بالذكاء الاصطناعي</button>
-      <button id="draft">✍️ بناء سيناريو من الموضوع</button>
-      <label>الصوت العربي</label>
-      <select id="voiceSelect"><option value="">تحميل الأصوات...</option></select>
-      <label>سرعة الصوت <span id="rateLabel">1.0×</span></label>
-      <input id="voiceRate" type="range" min="0.75" max="1.2" step="0.05" value="1">
-      <div class="opts"><label><input type="checkbox" id="optVocal" checked> أصوات التفاعل (صراخ، ضحك، ممم…)</label><label><input type="checkbox" id="optSfx" checked> مؤثرات صوتية</label></div>
-
-      <div id="scriptbox" class="scriptbox" hidden>
-        <label>السيناريو (عدّل بحرية)</label>
-        <textarea id="script" rows="10"></textarea>
-        <div class="hint">الشخصية تفهم المعنى وتتفاعل تلقائياً. وتقدر تتحكم يدوياً بإضافة توجيه قبل أي جملة، مثل: <b>[يصرخ]</b> <b>[يضحك]</b> <b>[يفكر]</b> <b>[يتفاجأ]</b> <b>[يغضب]</b> <b>[يبكي]</b> <b>[يخاف]</b> <b>[يسخر]</b> <b>[يتحمس]</b>. التوجيهات ما تنقرأ بصوت عالي.</div>
-        <label>خريطة التفاعل (اضغط على أي تفاعل لتجربته)</label>
-        <div id="reactmap" class="reactmap"></div>
-        <div id="feedbackBox" class="feedback" hidden><label>هل أعجبك أسلوب الراوي؟</label><div><button id="storyGood" type="button">👍 طبيعي ومناسب</button><button id="storyBad" type="button">👎 مصطنع / يحتاج تحسين</button></div><small id="feedbackStatus">تقييمك يساعد الأداة على تحسين النصوص القادمة على هذا الجهاز.</small></div><div class="script-actions"><button id="copy">نسخ</button><button id="perform" class="primary">▶️ عرض السرد والحركات</button><button id="stop" class="stop">⏹ إيقاف</button></div>
-      </div>
-
-      <div id="narration" class="narration" hidden><label>المقطع الحالي</label><div id="segment"></div><div id="progress"></div></div>
-      <div class="divider"></div>
-      <p class="hint">السرد الصوتي يستخدم مكتبة النطق الموجودة في المتصفح، والشخصية تتحرك وتتفاعل مع معنى كل جملة. الصوت يعتمد على أصوات جهازك.</p>
-    </section>
-
-    <section id="livePanel" class="app-panel panel" hidden>
-      <h2>Live Studio</h2>
-      <h3>Live — تجربة ردود التعليقات</h3>
-      <p class="hint">هذا القسم تجريبي حتى يتم ربط بث مباشر فعلي. الشخصية تقرأ التعليق وتتفاعل وترد بصوتها.</p>
-      <div id="modes" class="modes"></div>
-      <div class="chat"><input id="chat" placeholder="اكتب تعليقاً لاختبار الرد…"><button id="send">إرسال</button></div>
-      <div id="feed" class="feed"><div class="feedtitle">التعليقات وردود Live</div></div>
-    </section>
-
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Live Studio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;800&family=Tajawal:wght@500;800&family=Lalezar&family=Reem+Kufi:wght@600&family=Changa:wght@600;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/style.css?v=studio-editor-1">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">Live <span class="pill">STUDIO</span></div>
+  <input id="projName" class="projname" value="مشروع جديد" maxlength="60" aria-label="اسم المشروع">
+  <div class="tb-actions">
+    <label class="sel-inline">المقاس <select id="aspect"></select></label>
+    <button id="btnNew" type="button" title="مشروع جديد">جديد</button>
+    <button id="btnSave" type="button" title="تنزيل ملف المشروع">حفظ ⬇</button>
+    <button id="btnOpen" type="button" title="فتح ملف مشروع">فتح</button>
+    <input id="fileOpen" type="file" accept=".json,application/json" hidden>
   </div>
-</section>
-</main><script src="/rig.js?v=live-character-20261126"></script><script src="/app.js?v=shared-studio-editor-20261126"></script></body></html>
+</header>
+
+<main class="shell">
+  <section class="stagecol">
+    <div class="stage-area" id="stageArea">
+      <div class="stage-wrap" id="stageWrap">
+        <div class="stage" id="stage">
+          <div class="layer" id="lyBg"></div>
+          <div class="layer" id="lyChar"></div>
+          <div class="layer" id="lyProps"></div>
+          <div class="layer" id="lyTexts"></div>
+          <div class="layer" id="lyCaps"></div>
+          <div class="layer guides" id="lyGuides" hidden></div>
+        </div>
+      </div>
+    </div>
+    <div class="transport">
+      <button id="tPlay" class="t-main" type="button" aria-label="تشغيل">▶ تشغيل</button>
+      <button id="tStop" type="button" aria-label="إيقاف">⏹</button>
+      <span class="t-time" id="tTime">0:00</span>
+      <span class="t-status" id="status">جاهز</span>
+      <label class="chk"><input type="checkbox" id="chkGuides"> حدود آمنة</label>
+    </div>
+  </section>
+
+  <section class="timeline" aria-label="الخط الزمني">
+    <div class="tl-head"><b>الخط الزمني</b><span id="tlInfo" class="hint"></span>
+      <span class="tl-actions"><button id="tlAdd" type="button">＋ مقطع</button></span></div>
+    <div class="tl-scroll" id="tlScroll"><div class="tl-track" id="tlTrack"></div></div>
+    <div class="seg-editor" id="segEditor" hidden>
+      <textarea id="segText" rows="2" placeholder="نص المقطع"></textarea>
+      <div class="seg-grid">
+        <label>الانفعال <select id="segEmo"></select></label>
+        <label>الشدة <output id="segIntV">50</output>%<input id="segInt" type="range" min="0" max="100" value="50"></label>
+        <label>وقفة بعد المقطع <output id="segPauseV">280</output>ms<input id="segPause" type="range" min="0" max="1500" step="20" value="280"></label>
+      </div>
+      <div class="seg-btns">
+        <button id="segPlay" type="button">▶ من هنا</button><button id="segPreview" type="button">👁 معاينة التعبير</button><button id="segAnalyze" type="button">🔍 حلّل</button>
+        <button id="segSplit" type="button">✂ قسّم</button><button id="segUp" type="button">↑</button><button id="segDown" type="button">↓</button><button id="segDel" type="button" class="danger">🗑</button>
+      </div>
+    </div>
+  </section>
+
+  <aside class="panel" id="panel">
+    <nav class="tabs" id="tabs" role="tablist">
+      <button data-tab="story" class="on" role="tab">✍️ القصة</button>
+      <button data-tab="scene" role="tab">🖼 المشهد</button>
+      <button data-tab="char" role="tab">🧍 الشخصية</button>
+      <button data-tab="texts" role="tab">🔤 النصوص</button>
+      <button data-tab="voice" role="tab">🎙 الصوت</button>
+      <button data-tab="live" role="tab">🔴 بث</button>
+    </nav>
+
+    <!-- القصة -->
+    <div class="pane on" data-pane="story">
+      <div id="aiBanner" class="banner" hidden></div>
+      <div class="types" id="kindBtns"><button class="type on" data-kind="story">قصّة</button><button class="type" data-kind="commentary">تعليق</button><button class="type" data-kind="reaction">ردّة فعل</button></div>
+      <label for="topic">الموضوع، أو ألصق نص القصة التي تريد إعادة سردها</label>
+      <textarea id="topic" rows="4" placeholder="مثلاً: موظف أرشيف يكتشف أن الملف الممنوع يحمل اسمه…"></textarea>
+      <div class="row2">
+        <label>النبرة <select id="tone"><option>ساخر وخفيف</option><option>هادئ وقصصي</option><option>حماسي</option><option>هجومي كوميدي</option><option>جاد ومشوّق</option></select></label>
+        <label>اللهجة <select id="dialect"><option>بيضاء</option><option>شامية</option><option>خليجية</option><option>مصرية</option><option>فصحى مبسطة</option></select></label>
+      </div>
+      <label>عدد المقاطع <output id="lenV">16</output><input id="len" type="range" min="8" max="32" value="16"></label>
+      <label for="notes">ملاحظات اختيارية (نوع القصة، أجواء، شخصيات، ممنوعات…)</label>
+      <input id="notes" placeholder="مثلاً: غموض وتشويق، نهاية مؤثرة">
+      <button id="btnFull" class="primary" type="button">✨ اكتب قصة قوية (حبكة ← سرد ← مراجعة)</button>
+      <div class="steps">
+        <button id="btnPlot" type="button">① الحبكة فقط</button><button id="btnWrite" type="button">② اكتب السرد</button><button id="btnPolish" type="button">③ راجع وحسّن</button>
+      </div>
+      <div id="progress" class="progress" hidden></div>
+
+      <details id="plotCard" class="card" hidden open>
+        <summary>📖 كتاب القصة (عدّله قبل الكتابة)</summary>
+        <label>العنوان</label><input id="bTitle">
+        <label>الفكرة في جملة</label><textarea id="bLogline" rows="2"></textarea>
+        <label>الجملة الأولى (الخطّاف)</label><textarea id="bHook" rows="2"></textarea>
+        <label>الرهان: ما الذي سيُخسر</label><input id="bStakes">
+        <label>المفاجأة (يجب أن تعيد تفسير ما سبق)</label><textarea id="bTwist" rows="2"></textarea>
+        <label>الصورة الأخيرة</label><input id="bEnding">
+        <label>النبضات (نبضة في كل سطر)</label><textarea id="bBeats" rows="8"></textarea>
+      </details>
+      <details id="issuesCard" class="card" hidden><summary>🧐 ملاحظات المحرر القاسي</summary><ul id="issuesList"></ul></details>
+
+      <details class="card" open>
+        <summary>📝 النص الكامل (اكتب أو الصق، ثم حلّل)</summary>
+        <p class="hint">وجّه الانفعال يدوياً بوسم قبل أي جملة: <b>[يصرخ]</b> <b>[يضحك]</b> <b>[يفكر]</b> <b>[يتفاجأ]</b> <b>[يغضب]</b> <b>[حزين]</b> <b>[يخاف]</b> <b>[يسخر]</b> <b>[يتحمس]</b> <b>[جاد]</b>. الوسوم لا تُقرأ بصوت عالٍ.</p>
+        <textarea id="scriptText" rows="9" placeholder="ألصق نصك هنا…"></textarea>
+        <div class="steps"><button id="btnAnalyzeAI" type="button">🧠 حلّل بالذكاء الاصطناعي</button><button id="btnAnalyzeLocal" type="button">⚡ حلّل محلياً</button></div>
+        <div id="fbBox" class="feedback" hidden><span>هل أعجبك الأسلوب؟</span><button id="fbGood" type="button">👍 طبيعي</button><button id="fbBad" type="button">👎 مصطنع</button></div>
+      </details>
+    </div>
+
+    <!-- المشهد -->
+    <div class="pane" data-pane="scene">
+      <h3>الخلفية</h3>
+      <div class="types" id="bgTypes"><button class="type on" data-bg="preset">جاهزة</button><button class="type" data-bg="color">لون</button><button class="type" data-bg="gradient">تدرّج</button><button class="type" data-bg="image">صورة</button></div>
+      <div id="bgPreset" class="bgopt"><div class="presets" id="presetGrid"></div></div>
+      <div id="bgColor" class="bgopt" hidden><label>اللون <input type="color" id="bgC1" value="#101218"></label></div>
+      <div id="bgGradient" class="bgopt" hidden>
+        <div class="row2"><label>اللون الأول <input type="color" id="bgG1" value="#2d1d5c"></label><label>اللون الثاني <input type="color" id="bgG2" value="#0d0a1f"></label></div>
+        <label>الزاوية <output id="bgAngV">160</output>°<input type="range" id="bgAng" min="0" max="360" value="160"></label>
+      </div>
+      <div id="bgImage" class="bgopt" hidden>
+        <button id="bgPick" type="button" class="primary">📁 اختر صورة الخلفية</button><input type="file" id="bgFile" accept="image/*" hidden>
+        <div class="row2"><label>الملاءمة <select id="bgFit"><option value="cover">تغطية كاملة</option><option value="contain">احتواء</option></select></label>
+          <label>تعتيم <output id="bgDimV">0</output>%<input type="range" id="bgDim" min="0" max="80" value="0"></label></div>
+        <label>ضبابية <output id="bgBlurV">0</output>px<input type="range" id="bgBlur" min="0" max="20" value="0"></label>
+      </div>
+      <label class="chk"><input type="checkbox" id="chkDesk" checked> مكتب + مايك + كوب أمام الشخصية</label>
+      <p class="hint">المقاس يُغيَّر من القائمة أعلى الصفحة. الخلفية الخضراء مفيدة لو ستدمج الفيديو في برنامج مونتاج.</p>
+    </div>
+
+    <!-- الشخصية -->
+    <div class="pane" data-pane="char">
+      <h3>نوع الشخصية</h3>
+      <div class="types" id="charModes"><button class="type on" data-mode="builtin">المدمجة</button><button class="type" data-mode="sprite">صورة / صور</button><button class="type" data-mode="svg">ملف SVG جاهز</button></div>
+
+      <div id="cmBuiltin" class="cm">
+        <div class="row2"><label>لون الوجه <input type="color" id="skHead" value="#ffffff"></label><label>لون الخطوط <input type="color" id="skLine" value="#0b0a14"></label></div>
+        <div class="row2"><label>إضاءة السماعة <input type="color" id="skLed" value="#4aa3ff"></label><label class="chk"><input type="checkbox" id="skHp" checked> سماعة</label></div>
+        <button id="skReset" type="button">إعادة الألوان الافتراضية</button>
+      </div>
+
+      <div id="cmSprite" class="cm" hidden>
+        <p class="hint">ارفع صورة شخصيتك (PNG أو WebP بخلفية شفافة أفضل). صورة واحدة تكفي وتتحرك تلقائياً (تنفّس، قفز، اهتزاز، ميلان). ولو عندك صور لكل انفعال سمِّها <b>laugh.png</b> أو <b>ضحك.png</b>… وارفعها دفعة واحدة وتُوزَّع تلقائياً. صورة «فم مفتوح» (talk) اختيارية وتُبدَّل أثناء الكلام.</p>
+        <button id="spPickMany" type="button" class="primary">📁 رفع صورة أو عدة صور</button><input type="file" id="spFiles" accept="image/*" multiple hidden>
+        <div id="spGrid" class="spgrid"></div>
+        <button id="spClear" type="button" class="danger">إزالة صور الشخصية</button>
+      </div>
+
+      <div id="cmSvg" class="cm" hidden>
+        <p class="hint">ارفع ملف SVG لشخصيتك. سمِّ المجموعات (id أو data-live): <b>head</b> · <b>body</b> · <b>arm-l</b> · <b>arm-r</b> · <b>mouth</b> (أو <b>mouth-open</b>) · <b>eyes</b> · وللتعبيرات <b>face-laugh</b> … الأجزاء الناقصة تُتجاهل. نموذج جاهز في الأسفل.</p>
+        <button id="svPick" type="button" class="primary">📁 اختر ملف SVG</button><input type="file" id="svFile" accept=".svg,image/svg+xml" hidden>
+        <a href="/characters/sample-rig.svg" download class="linkbtn">⬇ نموذج SVG جاهز للتعديل</a>
+        <div id="svInfo" class="hint"></div>
+      </div>
+
+      <h3>التموضع</h3>
+      <label>الحجم <output id="lySizeV">100</output>%<input type="range" id="lySize" min="30" max="160" value="100"></label>
+      <div class="row2"><label>أفقي <input type="range" id="lyX" min="0" max="100" value="50"></label><label>عمودي <input type="range" id="lyY" min="-20" max="90" value="30"></label></div>
+      <div class="row2"><label class="chk"><input type="checkbox" id="lyFlip"> قلب أفقي</label><button id="lyAuto" type="button">ضبط تلقائي</button></div>
+      <p class="hint">يمكنك أيضاً سحب الشخصية مباشرة على المسرح.</p>
+      <h3>حزمة الشخصية</h3>
+      <div class="steps"><button id="pkExport" type="button">⬇ تصدير الشخصية</button><button id="pkImport" type="button">⬆ استيراد حزمة</button></div><input type="file" id="pkFile" accept=".json,application/json" hidden>
+    </div>
+
+    <!-- النصوص -->
+    <div class="pane" data-pane="texts">
+      <h3>نصوص على المسرح</h3>
+      <div id="txtList" class="txtlist"></div>
+      <button id="txtAdd" type="button" class="primary">＋ إضافة نص</button>
+      <div id="txtCtl" hidden>
+        <label>النص</label><input id="txtVal" maxlength="60">
+        <div class="row2"><label>اللون <input type="color" id="txtColor" value="#ff5bd8"></label><label>الخط <select id="txtFont"><option value="Cairo">Cairo</option><option value="Tajawal">Tajawal</option><option value="Lalezar">Lalezar</option><option value="Reem Kufi">Reem Kufi</option><option value="Changa">Changa</option><option value="Arial Black">Arial Black</option></select></label></div>
+        <label>الحجم <output id="txtSizeV">6</output><input type="range" id="txtSize" min="2" max="18" step=".5" value="6"></label>
+        <div class="row2"><label>أفقي <input type="range" id="txtX" min="0" max="100" value="50"></label><label>عمودي <input type="range" id="txtY" min="0" max="100" value="10"></label></div>
+        <label class="chk"><input type="checkbox" id="txtGlow" checked> توهج نيون</label>
+        <button id="txtDel" type="button" class="danger">حذف النص</button>
+      </div>
+      <h3>الترجمة أسفل الشاشة</h3>
+      <label class="chk"><input type="checkbox" id="capOn" checked> إظهار الجملة الحالية كترجمة</label>
+      <div class="row2"><label>الحجم <input type="range" id="capSize" min="2" max="9" step=".25" value="4.2"></label><label>الارتفاع <input type="range" id="capY" min="40" max="96" value="82"></label></div>
+      <div class="row2"><label>لون النص <input type="color" id="capColor" value="#ffffff"></label><label>لون التمييز <input type="color" id="capHl" value="#ffd34d"></label></div>
+      <label class="chk"><input type="checkbox" id="capBox" checked> خلفية شفافة خلف الترجمة</label>
+    </div>
+
+    <!-- الصوت -->
+    <div class="pane" data-pane="voice">
+      <div id="voiceInfo" class="banner"></div>
+      <label for="voiceSel">الصوت</label><select id="voiceSel"></select>
+      <label>سرعة الكلام <output id="rateV">1.00</output>×<input type="range" id="rate" min="0.7" max="1.3" step="0.05" value="1"></label>
+      <button id="voiceTest" type="button" class="primary">🔊 جرّب الصوت</button>
+      <p class="hint">لا توجد أصوات «ها ها» أو «آآه» مصطنعة. التعبير يأتي من وجه الشخصية وجسمها، والصوت يبقى طبيعياً بتغيّر بسيط في الإيقاع حسب الانفعال.</p>
+    </div>
+
+    <!-- بث -->
+    <div class="pane" data-pane="live">
+      <p class="hint">تجربة ردود التعليقات (محاكاة حتى يُربط بث حقيقي). الشخصية تقرأ التعليق وتتفاعل وترد بصوتها.</p>
+      <div id="modes" class="types"></div>
+      <div class="chat"><input id="chat" placeholder="اكتب تعليقاً لاختبار الرد…"><button id="send" type="button">إرسال</button></div>
+      <div id="feed" class="feed"><div class="feedtitle">التعليقات وردود Live</div></div>
+    </div>
+  </aside>
+</main>
+
+<script src="/rig.js?v=studio-editor-1"></script>
+<script src="/scene.js?v=studio-editor-1"></script>
+<script src="/character.js?v=studio-editor-1"></script>
+<script src="/analysis.js?v=studio-editor-1"></script>
+<script src="/voice.js?v=studio-editor-1"></script>
+<script src="/app.js?v=studio-editor-1"></script>
+<script src="/studio.js?v=studio-editor-1"></script>
+</body>
+</html>

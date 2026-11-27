@@ -35,12 +35,10 @@ const Rig = (() => {
  <filter id="rg-neon" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
  <clipPath id="rg-mclip"><path id="rg-mclipd" d=""/></clipPath>
 </defs>
-<rect width="600" height="600" rx="22" fill="url(#rg-bg)"/>
-<g opacity=".95" filter="url(#rg-neon)"><rect x="0" y="238" width="120" height="5" fill="#3b8cff"/><rect x="0" y="330" width="86" height="5" fill="#7a5cff"/><rect x="520" y="300" width="80" height="5" fill="#3b8cff"/></g>
-<g transform="translate(70 70)" filter="url(#rg-neon)"><circle cx="0" cy="-8" r="7" fill="#ff4d6d"/><text x="16" y="6" font-family="Arial Black,Impact,sans-serif" font-size="36" font-weight="900" fill="none" stroke="#ff6fd8" stroke-width="3">LIVE</text></g>
 
 <g id="rg-body">
  <g class="limb"><line x1="300" y1="300" x2="300" y2="352"/><path d="M300 352V560"/></g>
+ <g id="rg-armsback">${arm('aL')}${arm('aR')}</g>
  <g id="rg-headg">
   <ellipse class="headshape" rx="108" ry="104"/>
   <g id="rg-face">
@@ -52,7 +50,7 @@ const Rig = (() => {
    <rect class="hp-cup" x="-140" y="-40" width="38" height="86" rx="16"/><rect class="hp-cup" x="102" y="-40" width="38" height="86" rx="16"/>
    <g filter="url(#rg-neon)"><rect class="hp-led" x="-134" y="-22" width="6" height="52" rx="3"/><rect class="hp-led" x="128" y="-22" width="6" height="52" rx="3"/></g></g>
  </g>
- ${arm('aL')}${arm('aR')}
+ <g id="rg-armsfront"></g>
 </g>
 
 <g id="rg-fx" transform="translate(300 200)">
@@ -70,10 +68,6 @@ const Rig = (() => {
  <g class="fxg" id="rg-fx-haha"><text class="haha" x="120" y="-100" transform="rotate(12 120 -100)">ha</text><text class="haha" x="150" y="-62" transform="rotate(12 150 -62)">ha</text></g>
 </g>
 
-<rect x="-10" y="478" width="620" height="140" fill="#241a3a"/><rect x="-10" y="478" width="620" height="5" fill="#4c3a78"/>
-<g filter="url(#rg-neon)"><rect x="90" y="520" width="240" height="14" rx="5" fill="#16122b" stroke="#3b8cff" stroke-width="2"/></g>
-<g transform="translate(470 330) rotate(18)"><path d="M0 120L-60 175" stroke="#0b0a14" stroke-width="7" stroke-linecap="round"/><rect x="-22" y="0" width="44" height="125" rx="22" fill="#15141f" stroke="#0b0a14" stroke-width="5"/><rect x="-20" y="62" width="40" height="8" fill="#3b8cff" filter="url(#rg-neon)"/></g>
-<g transform="translate(520 428)"><rect x="-28" y="0" width="56" height="52" rx="8" fill="#15141f" stroke="#0b0a14" stroke-width="4"/><path d="M28 12h14a12 12 0 0 1 0 28h-14" fill="none" stroke="#0b0a14" stroke-width="6"/><path d="M-18 14h16v8h-16zM2 14h16v8H2z" fill="#fff"/></g>
 </svg>`;
 
   /* ---------- القيم والزنبرك ---------- */
@@ -96,30 +90,41 @@ const Rig = (() => {
   const POSES = {
     neutral: O({ hs: ['open', 'open'], motion: 'idle', fx: [], amp: 28 }),
     laugh:   O({ chev: 1, bY: -6, bC: 3, hr: -8, mw: 40, mcl: 42, mcr: 42, mu: 46, ml: 94, teeth: 1, tongue: 1, aL1: 52, aL2: 78, aR1: 52, aR2: 78, hs: ['point', 'point'], motion: 'laugh', fx: ['burst'], amp: 12 }),
-    scream:  O({ wide: 1, pr: .45, bY: -14, bR: -12, bC: 10, mw: 28, mcl: 62, mcr: 62, mu: 30, ml: 100, tongue: 1, hy: -6, aL1: 120, aL2: 38, aR1: 120, aR2: 38, hs: ['open', 'open'], motion: 'scream', fx: ['shout'], amp: 8 }),
+    scream:  O({ wide: 1, pr: .45, bY: -14, bR: -12, bC: 10, mw: 28, mcl: 62, mcr: 62, mu: 30, ml: 100, tongue: 1, hy: -6, aL1: 112, aL2: 14, aR1: 112, aR2: 14, hs: ['open', 'open'], motion: 'scream', fx: ['shout'], amp: 8 }),
     shock:   O({ wide: 1, pr: .5, bY: -16, bR: -8, bC: 12, mw: 15, mcl: 62, mcr: 62, mu: 46, ml: 82, hy: -8, aL1: 72, aL2: 52, aR1: 72, aR2: 52, hs: ['open', 'open'], motion: 'shock', fx: ['bang'], amp: 8, jump: -430 }),
     angry:   O({ lid: -4, lidA: 14, bY: 6, bR: 22, bC: 0, mw: 34, mcl: 70, mcr: 70, mu: 52, ml: 88, teeth: 1, tongue: 1, aL1: 55, aL2: 105, aR1: 55, aR2: 105, hs: ['fist', 'fist'], motion: 'angry', fx: ['veins', 'bolts'], amp: 10 }),
-    think:   O({ px: 9, py: -10, bY: -2, bR: 6, bYR: -10, bC: 10, mw: 12, mcl: 60, mcr: 56, mx: -8, hr: -8, aL1: 14, aL2: 8, aR1: 70, aR2: 150, hs: ['open', 'fist'], motion: 'think', fx: ['thought'], amp: 6 }),
+    think:   O({ px: 9, py: -10, bY: -2, bR: 6, bYR: -10, bC: 10, mw: 12, mcl: 60, mcr: 56, mx: -8, hr: -8, aL1: 14, aL2: 8, aR1: 70, aR2: 150, hs: ['open', 'fist'], front: [false, true], motion: 'think', fx: ['thought'], amp: 6 }),
     sad:     O({ lid: -14, lidA: -10, bY: -2, bR: -16, mw: 20, mcl: 68, mcr: 68, mu: 52, ml: 52, hr: 7, hy: 10, aL1: 8, aL2: 0, aR1: 8, aR2: 0, hs: ['open', 'open'], motion: 'sad', fx: ['tears'], amp: 8 }),
-    scared:  O({ wide: 1, pr: .4, bY: -12, bR: -14, mw: 24, mcl: 66, mcr: 66, mu: 56, ml: 96, tongue: 1, aL1: 112, aL2: 62, aR1: 112, aR2: 62, hs: ['open', 'open'], motion: 'scared', fx: ['sweat', 'shiver'], amp: 6 }),
+    scared:  O({ wide: 1, pr: .4, bY: -12, bR: -14, mw: 24, mcl: 66, mcr: 66, mu: 56, ml: 96, tongue: 1, aL1: 104, aL2: 26, aR1: 104, aR2: 26, hs: ['open', 'open'], motion: 'scared', fx: ['sweat', 'shiver'], amp: 6 }),
     sassy:   O({ lid: -3, lidA: 6, bY: -2, bYR: -9, bC: 12, mw: 22, mcl: 54, mcr: 40, mx: 6, hr: 10, aL1: 32, aL2: -105, aR1: 50, aR2: 75, hs: ['fist', 'open'], motion: 'sassy', fx: ['star'], amp: 14 }),
     excited: O({ wide: 1, pr: 1.1, bY: -8, bR: -4, bC: 12, mw: 38, mcl: 44, mcr: 44, mu: 48, ml: 90, teeth: 1, tongue: 1, aL1: 128, aL2: 30, aR1: 128, aR2: 30, hs: ['open', 'open'], motion: 'excited', fx: ['sparkle'], amp: 14 }),
-    serious: O({ lid: -2, lidA: 8, bY: 4, bR: 14, bC: 0, mw: 20, mcl: 58, mcr: 58, mu: 58, ml: 58, aL1: 24, aL2: 48, aR1: 24, aR2: 48, wL: -5, wR: 5, hs: ['open', 'open'], motion: 'serious', fx: [], amp: 14 }),
+    serious: O({ lid: -2, lidA: 8, bY: 4, bR: 14, bC: 0, mw: 20, mcl: 58, mcr: 58, mu: 58, ml: 58, aL1: 24, aL2: 48, aR1: 24, aR2: 48, wL: -5, wR: 5, hs: ['open', 'open'], front: [true, true], motion: 'serious', fx: [], amp: 14 }),
     mocking: O({ happy: 1, bY: -4, bR: -6, bC: 8, mw: 36, mcl: 44, mcr: 50, mu: 46, ml: 86, teeth: 1, tongue: 1, hr: -10, aL1: 20, aL2: 0, aR1: 88, aR2: 22, hs: ['open', 'point'], motion: 'mocking', fx: ['haha'], amp: 12 })
   };
 
-  let root, els = {}, cur = 'neutral', T = 0, last = 0, speakOn = false, nextOpen = 0, nextBlink = 2, blinkT0 = -9, nextLook = 1, motion = 'idle';
+  let running = false, root, els = {}, cur = 'neutral', T = 0, last = 0, speakOn = false, nextOpen = 0, nextBlink = 2, blinkT0 = -9, nextLook = 1, motion = 'idle';
   let base = Object.assign({}, DEF);
 
-  function pose(name) {
+  let levelMode = false, skinCfg = {}, hpOn = true;
+  function pose(name, intensity) {
     const S = POSES[name] || POSES.neutral; cur = POSES[name] ? name : 'neutral';
     base = Object.assign({}, DEF, S);
+    // الشدة تضبط حجم التعبير: 0 = تلميح خفيف، 1 = تعبير كامل (يمنع المبالغة في التمثيل)
+    const kk = intensity == null ? 1 : .45 + .55 * clamp(intensity, 0, 1);
+    if (cur !== 'neutral' && kk < 1) for (const k of Object.keys(DEF)) base[k] = DEF[k] + (base[k] - DEF[k]) * kk;
     for (const k of Object.keys(DEF)) P[k].t = base[k];
+    setFront(S.front || [false, false]);
     motion = S.motion || 'idle';
     FX_NAMES.forEach(n => FXA[n].t = (S.fx || []).includes(n) ? 1 : 0);
     setHands(S.hs || ['open', 'open']);
     if (S.jump) P.jump.v = S.jump;
     P.pop.v = 6;                                // نبضة صغيرة عند تغيّر الانفعال
+  }
+  function setFront(front) {
+    ['L', 'R'].forEach((side, i) => {
+      const target = root.querySelector(front[i] ? '#rg-armsfront' : '#rg-armsback');
+      if (els['a' + side].parentNode !== target) target.appendChild(els['a' + side]);
+    });
   }
   function setHands(hs) {
     for (const [i, side] of ['L', 'R'].entries())
@@ -147,7 +152,15 @@ const Rig = (() => {
     if (cur !== 'angry' && cur !== 'sad') setHands(g.hands);
   }
   function rest() { for (const k of ['aL1', 'aL2', 'aR1', 'aR2', 'hr', 'wL', 'wR']) P[k].t = base[k]; }
-  function speaking(on) { speakOn = !!on; if (!on) P.open.t = 0; }
+  function speaking(on) { speakOn = !!on; if (!on) { P.open.t = 0; levelMode = false; } }
+  function level(v) { if (v == null) { levelMode = false; return; } levelMode = true; P.open.t = clamp(v, 0, 1); }
+  function setSkin(o) {
+    skinCfg = Object.assign(skinCfg, o || {});
+    if (!root) return;
+    const map = { head: '--rg-head', line: '--rg-line', led: '--rg-led', cup: '--rg-cup' };
+    for (const [k, v] of Object.entries(map)) { if (skinCfg[k]) root.style.setProperty(v, skinCfg[k]); else root.style.removeProperty(v); }
+  }
+  function setHeadphones(on) { hpOn = !!on; if (root) root.querySelector('.hp').style.display = hpOn ? '' : 'none'; }
   function fx() { P.pop.v = 9; }
 
   /* ---------- محرك الحركة ---------- */
@@ -155,7 +168,7 @@ const Rig = (() => {
   function step(dt) {
     for (const k of Object.keys(P)) FACE.has(k) || k === 'open' ? spring(P[k], dt, 260, 32) : spring(P[k], dt, 140, 15);
     for (const n of FX_NAMES) spring(FXA[n], dt, 200, 28);
-    if (speakOn && T > nextOpen) { P.open.t = Math.random() < .2 ? .12 : rnd(.35, 1); nextOpen = T + rnd(.07, .15); }
+    if (speakOn && !levelMode && T > nextOpen) { P.open.t = Math.random() < .2 ? .12 : rnd(.35, 1); nextOpen = T + rnd(.07, .15); }
     if (T > nextLook) { if (!speakOn) { P.px.t = base.px + rnd(-4, 4); P.py.t = base.py + rnd(-2, 2); } nextLook = T + rnd(1.2, 3); }
     if (T > nextBlink) { blinkT0 = T; nextBlink = T + rnd(2.5, 5); }
   }
@@ -234,6 +247,7 @@ const Rig = (() => {
   }
   function frame(now) {
     const dt = Math.min(.033, (now - last) / 1000); last = now; T += dt;
+    if (!root || !root.isConnected) { running = false; return; }
     step(dt); render(); requestAnimationFrame(frame);
   }
 
@@ -251,9 +265,11 @@ const Rig = (() => {
       e.lcr = q('lcr' + s); els['eye' + s] = e;
     }
     for (const n of FX_NAMES) els.fxg[n] = q('fx-' + n);
-    pose('neutral');
+    pose('neutral'); setSkin({}); setHeadphones(hpOn);
     for (const k of Object.keys(P)) if (k !== 'pop') { P[k].x = P[k].t; P[k].v = 0; }
-    last = performance.now(); requestAnimationFrame(frame);
+    last = performance.now();
+    if (!running) { running = true; requestAnimationFrame(frame); }
   }
-  return { mount, pose, beat, rest, speaking, fx, POSES: Object.keys(POSES) };
+  function unmount() { if (root) root.remove(); root = null; }
+  return { mount, unmount, pose, beat, rest, speaking, level, fx, setSkin, setHeadphones, getRoot: () => root, POSES: Object.keys(POSES) };
 })();
