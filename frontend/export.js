@@ -102,6 +102,7 @@ const Exporter = (() => {
       const chunks = [], rec = new MediaRecorder(stream, { mimeType: mt.m, videoBitsPerSecond: shortSide >= 1000 ? 8e6 : 5e6 }); rec.ondataavailable = e => { if (e.data.size) chunks.push(e.data); };
       const stopped = new Promise(r => rec.onstop = r); stopPlayback(); Voice.unlock(); let drawing = true, frames = 0;
       const draw = async () => { ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.clearRect(0, 0, cw, ch); ctx.setTransform(cw / a.w, 0, 0, ch / a.h, 0, 0); drawBg(ctx, a.w, a.h, st); await drawChar(ctx, a.w, a.h); if (st.props) ctx.drawImage(st.props, 0, 0, a.w, a.h); drawTexts(ctx, a.w, a.h); drawCaption(ctx, a.w, a.h); out.drawImage(bk, 0, 0); frames++; };
+      if (as) { await Voice.prepare(segs().map(x => ({ text: x.text, opts: voiceOpts(x) })), (n, t) => setStatus(`جارٍ تجهيز الصوت كاملاً قبل التسجيل… ${n}/${t}`), segs().length); if (aborted) { running = false; btn.disabled = false; return; } }
       await draw(); rec.start(500); setStatus('🔴 جارٍ التسجيل… أبقِ هذا التبويب ظاهراً'); await wait(350);
       const loop = (async () => { while (drawing) { try { await draw(); } catch (e) { /* لقطة فاشلة: نكمل */ } await nextFrame(); } })();
       await playFrom(0); await wait(700); drawing = false; await loop; rec.stop(); await stopped; Voice.releaseCapture();

@@ -44,7 +44,7 @@ const Voice = (() => {
         .then(b => new Promise((res, rej) => c.decodeAudioData(b, res, rej)))
         .then(buf => buf);
       p.catch(() => { cache.delete(key); });
-      cache.set(key, p); if (cache.size > 24) cache.delete(cache.keys().next().value);
+      cache.set(key, p); if (cache.size > 80) cache.delete(cache.keys().next().value);
     }
     return cache.get(key);
   }
@@ -100,10 +100,22 @@ const Voice = (() => {
   }
   function cancel(bump = true) { if (bump) runId++; if (cur) cur.stop(); if ('speechSynthesis' in window) speechSynthesis.cancel(); }
 
+  // تجهيز مسبق: يولّد الصوت لعدة مقاطع بالتوازي المحدود. يُرجع وعداً يتحقق عند جاهزية أول `need` مقطع، ويكمل الباقي بالخلفية
+  function prepare(items, onProgress, need) {
+    const total = items.length; need = Math.min(need || 1, total); let next = 0, done = 0;
+    return new Promise(resolve => {
+      if (!total || !serverOn()) return resolve();
+      let fired = false;
+      const tick = () => { done++; onProgress && onProgress(done, total); if (!fired && done >= need) { fired = true; resolve(); } };
+      const worker = async () => { while (next < total) { const it = items[next++]; try { const pr = prefetch(it.text, it.opts); if (pr) await pr; } catch (e) { /* يُعالج وقت التشغيل */ } tick(); } };
+      worker(); worker();
+    });
+  }
+
   // التقاط الصوت للتصدير: صوت الخادم فقط يمر عبر WebAudio فيمكن تسجيله
   let recDest = null;
   function captureStream() { const c = ctx(); if (!c) return null; if (!recDest) { recDest = c.createMediaStreamDestination(); analyser.connect(recDest); } return recDest.stream; }
   function releaseCapture() { if (recDest) { try { analyser.disconnect(recDest); } catch (e) { /* ok */ } recDest = null; } }
 
-  return Object.assign(api, { init, unlock, listVoices, sampleFor, speak, prefetch, cancel, captureStream, releaseCapture, get caps() { return caps; }, get serverOn() { return serverOn(); }, get last() { return last; } });
+  return Object.assign(api, { init, unlock, listVoices, sampleFor, speak, prefetch, prepare, cancel, captureStream, releaseCapture, get caps() { return caps; }, get serverOn() { return serverOn(); }, get last() { return last; } });
 })();

@@ -64,6 +64,8 @@ function tick() {
 async function playFrom(i) {
   const list = segs(); if (!list.length) { setStatus('لا يوجد نص للتشغيل بعد'); return; }
   stopPlayback(); const id = ++player.run; player.playing = true; player.t0 = performance.now(); Voice.unlock(); setPlayBtn(); tick();
+  { const from = clamp(i, 0, list.length - 1), items = list.slice(from).map(x => ({ text: x.text, opts: voiceOpts(x) }));
+    await Voice.prepare(items, (n, t) => { if (id === player.run) setStatus(`جارٍ تجهيز الصوت… ${n}/${t}`); }, 2); if (id !== player.run) return; }
   for (let k = clamp(i, 0, list.length - 1); k < list.length; k++) {
     if (id !== player.run) return; player.idx = k; player.segT0 = performance.now(); selectSeg(k, { scroll: true });
     const s = list[k], nxt = list[k + 1]; setStatus(`المقطع ${k + 1} من ${list.length} · ${EMO_META[s.emotion][0]} ${EMO_META[s.emotion][1]}`);

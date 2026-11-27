@@ -511,6 +511,8 @@ VOICE_GROUPS = [
 ]
 GEMINI_VOICES = [('Charon', 'رجولي هادئ'), ('Orus', 'رجولي حازم'), ('Puck', 'شبابي مرح'), ('Fenrir', 'متحمس'),
                  ('Kore', 'نسائي واضح'), ('Aoede', 'نسائي دافئ'), ('Leda', 'نسائي شاب'), ('Zephyr', 'نسائي مشرق')]
+GEMINI_DIALECTS = [('', 'فصحى'), ('SA', 'سعودي'), ('AE', 'إماراتي خليجي'), ('YE', 'يمني'), ('SY', 'سوري'), ('LB', 'لبناني'),
+                   ('JO', 'أردني'), ('IQ', 'عراقي'), ('EG', 'مصري'), ('MA', 'مغربي'), ('DZ', 'جزائري')]
 _FEMALE_RE = re.compile(r'Zariyah|Fatima|Noura|Amal|Laila|Aysha|Maryam|Amany|Layla|Sana|Rana|Salma|Iman|Reem|Amina|Mouna|Aria|Sonia|Denise|Elvira|Katja|Emel|Uzma|Dilara|Swara|Gadis|Svetlana|Elsa|Francisca|Nanami|SunHi|Xiaoxiao')
 _DIALECT = {'SA': 'Saudi', 'AE': 'Emirati Gulf', 'KW': 'Kuwaiti Gulf', 'QA': 'Qatari Gulf', 'BH': 'Bahraini Gulf', 'OM': 'Omani', 'YE': 'Yemeni',
             'SY': 'Syrian Levantine', 'LB': 'Lebanese Levantine', 'JO': 'Jordanian Levantine', 'IQ': 'Iraqi', 'EG': 'Egyptian',
@@ -526,8 +528,10 @@ def voice_catalog(tts: List[str]) -> List[Dict[str, str]]:
     if 'elevenlabs' in tts:
         out.append({'key': 'eleven', 'label': 'صوتك في ElevenLabs', 'group': 'ElevenLabs', 'sample': _AR_SAMPLE})
     if gemini_key():
-        out += [{'key': 'g:' + n, 'label': f'{n} · {d}', 'group': 'Gemini (مجاني · حصة يومية محدودة)', 'sample': _AR_SAMPLE}
-                for n, d in GEMINI_VOICES]
+        for code, dlabel in GEMINI_DIALECTS:
+            vs = GEMINI_VOICES if not code else [v for v in GEMINI_VOICES if v[0] in ('Charon', 'Orus', 'Kore', 'Aoede')]
+            out += [{'key': 'g:' + n + (':' + code if code else ''), 'label': f'{d} ({n})', 'group': f'Gemini · {dlabel}', 'sample': _AR_SAMPLE}
+                    for n, d in vs]
     if 'azure' in tts or 'edge' in tts:
         for group, sample, voices in VOICE_GROUPS:
             for key, label in voices:
@@ -544,7 +548,7 @@ _tts_cache: 'OrderedDict[tuple, bytes]' = OrderedDict()
 _gemini_tts_models: List[str] = []
 
 
-def _gemini_tts(text: str, voice_name: str, edge_voice: str = '', emotion: str = 'neutral') -> bytes:
+def _gemini_tts(text: str, voice_name: str, edge_voice: str = '', emotion: str = 'neutral', dialect_code: str = '') -> bytes:
     """صوت Gemini (WAV). يحاكي اللهجة والانفعال بتعليمة قبل النص."""
     import base64, wave
     if not _gemini_tts_models:
@@ -559,8 +563,10 @@ def _gemini_tts(text: str, voice_name: str, edge_voice: str = '', emotion: str =
         _gemini_tts_models.extend(sorted(names, key=lambda n: ('pro' in n, n)) or ['gemini-2.5-flash-preview-tts'])
     m = _VOICE_RE.match(edge_voice) if edge_voice else None
     dialect = _DIALECT.get(edge_voice.split('-')[1], '') if m and edge_voice.startswith('ar-') else ''
-    lead = ('Say in a ' + dialect + ' Arabic accent, ' if dialect else 'Say ') + _EMO_STYLE.get(emotion, 'naturally') + ': '
-    last = 'unknown'
+    if dialect_code:
+        dialect = _DIALECT.get(dialect_code, '')
+    lead = (('Speak in an authentic ' + dialect + ' colloquial Arabic dialect with native local pronunciation (not Modern Standard Arabic), ') if dialect else 'Say ') + _EMO_STYLE.get(emotion, 'naturally') + ': '
+    last = 'unknown'; retried = False
     for model in list(_gemini_tts_models)[:3]:
         try:
             data = _post_json(f'{GEMINI_BASE}/models/{model}:generateContent', {'x-goog-api-key': gemini_key()}, {
@@ -568,7 +574,17 @@ def _gemini_tts(text: str, voice_name: str, edge_voice: str = '', emotion: str =
                 'generationConfig': {'responseModalities': ['AUDIO'], 'speechConfig': {'voiceConfig': {'prebuiltVoiceConfig': {'voiceName': voice_name}}}}}, 90)
         except urllib.error.HTTPError as exc:
             last = f'{model}:{exc.code}'
-            continue
+            if exc.code == 429 and not retried:
+                retried = True; time.sleep(4)
+                try:
+                    data = _post_json(f'{GEMINI_BASE}/models/{model}:generateContent', {'x-goog-api-key': gemini_key()}, {
+                        'contents': [{'parts': [{'text': lead + text}]}],
+                        'generationConfig': {'responseModalities': ['AUDIO'], 'speechConfig': {'voiceConfig': {'prebuiltVoiceConfig': {'voiceName': voice_name}}}}}, 90)
+                except urllib.error.HTTPError as exc2:
+                    last = f'{model}:{exc2.code}'
+                    continue
+            else:
+                continue
         parts = ((data.get('candidates') or [{}])[0].get('content') or {}).get('parts', [])
         for part in parts:
             inline = part.get('inlineData')
@@ -693,10 +709,18 @@ async def tts(req: TtsRequest):
                                  'instructions': 'تحدث بالعربية بأسلوب راوٍ طبيعي هادئ، بدون مبالغة تمثيلية.'})
             return Response(audio, media_type='audio/mpeg')
         if req.voice.startswith('g:') and gemini_key():
+            parts = req.voice[2:].split(':'); gname = parts[0]; gdial = parts[1] if len(parts) > 1 else ''
+            gkey = ('g', text, gname, gdial, req.emotion)
+            if gkey in _tts_cache:
+                _tts_cache.move_to_end(gkey)
+                return Response(_tts_cache[gkey], media_type='audio/wav')
             try:
-                audio = await run_in_threadpool(_gemini_tts, text, req.voice[2:], '', req.emotion)
+                audio = await run_in_threadpool(_gemini_tts, text, gname, '', req.emotion, gdial)
             except Exception as exc:  # noqa: BLE001
                 raise HTTPException(502, f'صوت Gemini تعذّر ({str(exc)[:90]}). غالباً وصلت للحصة اليومية المجانية.')
+            _tts_cache[gkey] = audio
+            while len(_tts_cache) > 160:
+                _tts_cache.popitem(last=False)
             return Response(audio, media_type='audio/wav')
         if not (azure_ready() or edge_allowed()):
             raise HTTPException(501, 'لا يوجد مزوّد أصوات مرخّص على الخادم (AZURE_SPEECH_KEY). سيُستخدم صوت المتصفح.')
