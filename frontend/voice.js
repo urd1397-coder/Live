@@ -95,5 +95,10 @@ const Voice = (() => {
   }
   function cancel(bump = true) { if (bump) runId++; if (cur) cur.stop(); if ('speechSynthesis' in window) speechSynthesis.cancel(); }
 
-  return { init, unlock, listVoices, speak, prefetch, cancel, get caps() { return caps; }, get serverOn() { return serverOn(); } };
+  // التقاط الصوت للتصدير: صوت الخادم فقط يمر عبر WebAudio فيمكن تسجيله
+  let recDest = null;
+  function captureStream() { const c = ctx(); if (!c) return null; if (!recDest) { recDest = c.createMediaStreamDestination(); analyser.connect(recDest); } return recDest.stream; }
+  function releaseCapture() { if (recDest) { try { analyser.disconnect(recDest); } catch (e) { /* ok */ } recDest = null; } }
+
+  return { init, unlock, listVoices, speak, prefetch, cancel, captureStream, releaseCapture, get caps() { return caps; }, get serverOn() { return serverOn(); } };
 })();
