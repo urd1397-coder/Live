@@ -167,3 +167,4 @@ button.big{display:block;width:100%;padding:13px 14px;font-size:16px;font-weight
 .loadov .spin{width:38px;height:38px;border:4px solid #ffffff33;border-top-color:var(--acc);border-radius:50%;animation:ldspin 1s linear infinite}
 .loadov .bar{width:70%;height:8px;background:#ffffff22;border-radius:6px;overflow:hidden}.loadov .bar i{display:block;height:100%;width:0;background:var(--acc);transition:width .3s}
 @keyframes ldspin{to{transform:rotate(360deg)}}
+.btnlink{display:block;text-align:center;padding:12px;margin:6px 0;border:1px solid var(--line);border-radius:10px;color:#cfd2ff;text-decoration:none;font-weight:700}

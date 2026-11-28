@@ -90,6 +90,7 @@
       </div>
 
       <div id="smAi" hidden>
+        <div class="types seg2" id="aiWay"><button class="type on" data-way="chat">📋 عبر Gemini Chat (مجاني)</button><button class="type" data-way="api">🤖 تلقائي بمفتاح</button></div>
         <div id="aiBanner" class="banner" hidden></div>
         <label for="topic">عن ماذا تريد القصة؟ (أو ألصق قصة لإعادة سردها)</label>
         <textarea id="topic" rows="4" placeholder="مثلاً: موظف أرشيف يكتشف أن الملف الممنوع يحمل اسمه…"></textarea>
@@ -97,8 +98,16 @@
           <label>النبرة <select id="tone"><option>ساخر وخفيف</option><option>هادئ وقصصي</option><option>حماسي</option><option>هجومي كوميدي</option><option>جاد ومشوّق</option></select></label>
           <label>اللهجة <select id="dialect"><option>بيضاء</option><option>شامية</option><option>خليجية</option><option>مصرية</option><option>فصحى مبسطة</option></select></label>
         </div>
+        <div id="wayChat">
+          <button id="btnCopyPrompt" class="primary big" type="button">① انسخ التعليمات</button>
+          <a id="btnOpenGem" class="btnlink" href="https://gemini.google.com/app" target="_blank" rel="noopener">② افتح Gemini والصق التعليمات</a>
+          <label for="pasteBack">③ الصق رد Gemini هنا</label>
+          <textarea id="pasteBack" rows="5" placeholder="الصق الرد كاملاً (JSON أو نصاً)…"></textarea>
+          <button id="btnImport" class="primary big" type="button">④ أدخل في المحرر</button>
+          <p class="hint">التعليمات تطلب من Gemini أن يبني الحبكة ويكتب ويدقق ثم يعطيك النتيجة جاهزة. يعمل بدون مفتاح وبدون حصة. للأفضل استخدم نموذج Pro أو Thinking في Gemini.</p>
+        </div>
         <button id="btnFull" class="primary big" type="button">✨ اكتب قصة قوية</button>
-        <p class="hint">يمر بثلاث مراحل: حبكة، ثم سرد، ثم مراجعة محرر قاسٍ. تستغرق دقيقة تقريباً.</p>
+        <p class="hint" id="fullHint">يمر بثلاث مراحل: حبكة، ثم سرد، ثم مراجعة محرر قاسٍ. تستغرق دقيقة تقريباً.</p>
         <div id="progress" class="progress" hidden></div>
         <details class="card"><summary>⚙️ خيارات متقدمة</summary>
           <div class="types" id="kindBtns"><button class="type on" data-kind="story">قصّة</button><button class="type" data-kind="commentary">تعليق</button><button class="type" data-kind="reaction">ردّة فعل</button></div>

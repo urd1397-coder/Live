@@ -432,6 +432,57 @@ def story_polish(req: PolishRequest):
     return {'ok': True, 'segments': segs, 'script': segments_to_script(segs), 'issues': issues}
 
 
+class ImportRequest(BaseModel):
+    raw: str = Field(min_length=10, max_length=80000)
+
+
+def lint_segments(segs: List[Dict[str, Any]]) -> List[str]:
+    """فحوصات محلية مجانية بلا نموذج."""
+    out: List[str] = []
+    if len(segs) < 6:
+        out.append('عدد المقاطع قليل (أقل من 6).')
+    long_ = [i + 1 for i, x in enumerate(segs) if len(x['text']) > 230]
+    if long_:
+        out.append('مقاطع طويلة جداً على الصوت (قسّمها): ' + '، '.join(map(str, long_[:8])))
+    starts = [x['text'].split()[0] if x['text'].split() else '' for x in segs]
+    rep_ = sorted({w for w in starts if w and starts.count(w) >= max(4, len(segs) // 3)})
+    if rep_:
+        out.append('كثرة البدء بنفس الكلمة: ' + '، '.join(rep_))
+    emo = [x['emotion'] for x in segs]
+    if emo and max(emo.count(e) for e in set(emo)) > len(emo) * .8:
+        out.append('الانفعال شبه ثابت في كل المقاطع، تنوّع أكثر.')
+    return out
+
+
+@app.post('/api/story/prompt')
+def story_prompt(req: PlotRequest):
+    """يبني تعليمات جاهزة تُنسخ إلى Gemini Chat (أو أي شات)، بلا مفتاح ولا استهلاك حصة."""
+    user = (f'الموضوع أو المادة من المستخدم:\n"""\n{req.topic}\n"""\n\nالنبرة: {req.tone}\nعدد المقاطع المنطوقة: {req.length} تقريباً '
+            f'(كل مقطع جملة أو جملتان تُقالان بنفَس واحد)\nملاحظات المستخدم: {req.notes or "لا شيء"}\n\n'
+            'نفّذ ثلاث مراحل داخل رد واحد دون أن تعرضها: (1) ابنِ «كتاب القصة» بأفكار غير متوقعة وبثمن حقيقي وزرع وحصاد ومفاجأة عادلة. '
+            '(2) احكِ القصة كراوٍ يخاطب الكاميرا: hook في أول جملة، كل نقلة سببية (لذلك/لكن)، نهاية بصورة أخيرة دون موعظة، وسخرية نادرة ذكية. '
+            '(3) راجع المسودة كمحرر قاسٍ: احذف الحشو والكليشيهات والضحك والصراخ المكتوب، وأصلح كل خلل، ثم قدّم النسخة النهائية فقط.\n\n'
+            + EMOTION_GUIDE + '\n\nأخرج JSON واحداً فقط بلا أي شرح قبله أو بعده ولا علامات markdown، بهذا الشكل: '
+            '{"bible": ' + BIBLE_SCHEMA + ', "issues": ["أخلال وجدتها وأصلحتها"], "segments": [ ...المقاطع... ]}\n'
+            'بنية المقطع الواحد داخل segments: ' + SEGMENT_SCHEMA)
+    return {'ok': True, 'prompt': story_system(req.kind, req.dialect) + '\n\n---\n' + user}
+
+
+@app.post('/api/story/import')
+def story_import(req: ImportRequest):
+    """يستقبل رد الشات الملصوق: JSON أو نصاً عادياً."""
+    try:
+        data = extract_json(req.raw)
+    except ValueError:
+        return {'ok': True, 'plain': True, 'script': req.raw.strip(), 'segments': [], 'issues': []}
+    segs = clean_segments(data.get('segments') if isinstance(data, dict) else data)
+    if not segs:
+        return {'ok': True, 'plain': True, 'script': req.raw.strip(), 'segments': [], 'issues': []}
+    issues = [str(i)[:240] for i in ((data.get('issues') if isinstance(data, dict) else []) or [])][:12]
+    return {'ok': True, 'plain': False, 'segments': segs, 'script': segments_to_script(segs), 'issues': issues,
+            'lint': lint_segments(segs), 'bible': data.get('bible') if isinstance(data, dict) else None}
+
+
 @app.post('/api/analyze')
 def analyze(req: AnalyzeRequest):
     user = ('حلّل النص التالي وقسّمه إلى مقاطع منطوقة (جملة أو جملتان)، وأعطِ لكل مقطع انفعال الراوي الصادق وشدته ووقفته. '

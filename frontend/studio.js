@@ -168,3 +168,32 @@ async function handleComment(msg) {
 }
 $('send').onclick = () => { handleComment($('chat').value); $('chat').value = ''; };
 $('chat').addEventListener('keydown', e => { if (e.key === 'Enter') $('send').click(); });
+
+
+/* ---------- كتابة القصة عبر Gemini Chat (نسخ ولصق) ---------- */
+function setWay(w) {
+  document.querySelectorAll('#aiWay .type').forEach(b => b.classList.toggle('on', b.dataset.way === w));
+  $('wayChat').hidden = w !== 'chat'; for (const id of ['btnFull', 'fullHint']) $(id).hidden = w !== 'api'; if (w !== 'api') $('progress').hidden = true;
+}
+$('aiWay').addEventListener('click', e => { const b = e.target.closest('[data-way]'); if (b) setWay(b.dataset.way); });
+$('btnCopyPrompt').onclick = async () => {
+  const topic = $('topic').value.trim(); if (topic.length < 2) { setStatus('اكتب الموضوع أولاً'); $('topic').focus(); return; }
+  try {
+    const r = await (await fetch('/api/story/prompt', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ topic, tone: $('tone').value, dialect: $('dialect').value, kind: P.script.kind || 'story', length: +$('len').value, notes: $('notes').value }) })).json();
+    if (!r.prompt) throw new Error(r.detail || 'تعذّر');
+    try { await navigator.clipboard.writeText(r.prompt); setStatus('✅ نُسخت التعليمات. افتح Gemini والصقها'); }
+    catch (e) { $('pasteBack').value = r.prompt; setStatus('انسخ التعليمات من خانة اللصق ثم الصقها في Gemini'); }
+  } catch (e) { setStatus('تعذّر: ' + e.message); }
+};
+$('btnImport').onclick = async () => {
+  const raw = $('pasteBack').value.trim(); if (raw.length < 10) { setStatus('الصق رد Gemini أولاً'); return; }
+  try {
+    const r = await (await fetch('/api/story/import', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ raw }) })).json();
+    if (!r.ok) throw new Error(r.detail || 'تعذّر');
+    if (r.plain) { $('scriptText').value = r.script; setStoryMode('own'); $('btnAnalyzeLocal').click(); setStatus('لم أجد JSON، عوملت كنص عادي وحُلّل محلياً'); return; }
+    setSegments(r.segments); const notes = [...(r.issues || []).map(x => 'أُصلح: ' + x), ...(r.lint || []).map(x => 'تنبيه: ' + x)];
+    if (notes.length) { $('issuesCard').hidden = false; $('issuesList').replaceChildren(...notes.map(t => Object.assign(document.createElement('li'), { textContent: t }))); }
+    setStatus(`أُدخلت القصة: ${r.segments.length} مقطع. اضغط ▶ تشغيل`);
+  } catch (e) { setStatus('تعذّر الإدخال: ' + e.message); }
+};
+setWay('chat');
