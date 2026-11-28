@@ -615,8 +615,9 @@ def azure_ready() -> bool:
 
 
 def edge_allowed() -> bool:
-    """edge-tts يستعمل خدمة قراءة متصفح Edge بلا ترخيص تجاري، فهو معطّل افتراضياً. فعّله فقط للتجربة الشخصية بـ ALLOW_UNOFFICIAL_TTS=1."""
-    if os.getenv('ALLOW_UNOFFICIAL_TTS', '') != '1':
+    """edge-tts مجاني وبلا مفاتيح، لكنه يستعمل خدمة قراءة متصفح Edge بلا ترخيص تجاري رسمي ويمكن أن تحجبه مايكروسوفت.
+    مفعّل افتراضياً كخيار مجاني. للإطلاق التجاري ضع ALLOW_UNOFFICIAL_TTS=0 واستعمل Azure أو مزوّداً مرخّصاً."""
+    if os.getenv('ALLOW_UNOFFICIAL_TTS', '1') == '0':
         return False
     try:
         import edge_tts  # noqa: F401
