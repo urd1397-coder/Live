@@ -4,8 +4,8 @@ let selSeg = -1, player = { run: 0, playing: false, idx: 0, t0: 0 }, beatTimer =
 const LEAD = { shock: 260, scream: 220, laugh: 180, angry: 120, scared: 140 };   // يتفاعل بوجهه قبل أن ينطق
 const segs = () => P.script.segments;
 const fmt = s => Math.floor(s / 60) + ':' + String(Math.floor(s % 60)).padStart(2, '0');
-const norm = s => ({ text: String(s.text || '').trim(), emotion: Characters.EMOS.includes(s.emotion) ? s.emotion : 'neutral', intensity: clamp(+s.intensity || .5, 0, 1), pause_ms: clamp(Number.isFinite(+s.pause_ms) ? +s.pause_ms : 280, 0, 2500), emphasis: Array.isArray(s.emphasis) ? s.emphasis.filter(w => typeof w === 'string') : [], forced: !!s.forced, voice: typeof s.voice === 'string' ? s.voice : '' });
-const voiceOpts = s => ({ voice: s.voice || P.voice.key, rate: P.voice.rate, emotion: s.emotion, intensity: s.intensity, style: !!P.voice.style });
+const norm = s => ({ text: String(s.text || '').trim(), emotion: Characters.EMOS.includes(s.emotion) ? s.emotion : 'neutral', intensity: clamp(+s.intensity || .5, 0, 1), pause_ms: clamp(Number.isFinite(+s.pause_ms) ? +s.pause_ms : 280, 0, 2500), emphasis: Array.isArray(s.emphasis) ? s.emphasis.filter(w => typeof w === 'string') : [], forced: !!s.forced, voice: typeof s.voice === 'string' ? s.voice : '', clip: typeof s.clip === 'string' ? s.clip : '' });
+const voiceOpts = s => ({ voice: s.voice || P.voice.key, rate: P.voice.rate, emotion: s.emotion, intensity: s.intensity, style: !!P.voice.style, clip: s.clip || '' });
 
 /* ---------- الخط الزمني ---------- */
 function renderTimeline() {
@@ -30,7 +30,7 @@ function selectSeg(i, o = {}) {
 function showSegEditor() {
   const s = segs()[selSeg], box = $('segEditor'); box.hidden = !s; if (!s) return;
   if (document.activeElement !== $('segText')) $('segText').value = s.text;
-  fillVoiceSelect($('segVoice'), true, s.voice || ''); $('segEmo').value = s.emotion; $('segInt').value = Math.round(s.intensity * 100); $('segIntV').textContent = $('segInt').value; $('segPause').value = s.pause_ms; $('segPauseV').textContent = s.pause_ms;
+  showClipInfo(s); fillVoiceSelect($('segVoice'), true, s.voice || ''); $('segEmo').value = s.emotion; $('segInt').value = Math.round(s.intensity * 100); $('segIntV').textContent = $('segInt').value; $('segPause').value = s.pause_ms; $('segPauseV').textContent = s.pause_ms;
 }
 Characters.EMOS.forEach(e => $('segEmo').add(new Option(EMO_META[e][0] + ' ' + EMO_META[e][1], e)));
 const cur = () => segs()[selSeg];
@@ -66,17 +66,17 @@ async function playFrom(i) {
   stopPlayback(); const id = ++player.run; player.playing = true; player.t0 = performance.now(); Voice.unlock(); setPlayBtn(); tick();
   { const from = clamp(i, 0, list.length - 1), items = list.slice(from).map(x => ({ text: x.text, opts: voiceOpts(x) }));
     const showLoad = (n, t) => { if (id !== player.run) return; $('loadOv').hidden = false; $('loadTxt').textContent = `جارٍ تحميل الفيديو (صوت وصورة)… ${n}/${t}`; $('loadBar').style.width = (t ? n / t * 100 : 0) + '%'; setStatus(`جارٍ التحميل ${n}/${t}`); };
-    if (Voice.serverOn && items.length) showLoad(0, items.length);
+    if ((Voice.serverOn || items.some(x => x.opts.clip)) && items.length) showLoad(0, items.length);
     const failed = await Voice.prepare(items, showLoad, items.length); $('loadOv').hidden = true;
     if (id !== player.run) return; if (failed) setStatus(`⚠️ تعذّر تجهيز صوت ${failed} مقطع، وسيُقرأ بصوت المتصفح بدلاً منه`); }
   for (let k = clamp(i, 0, list.length - 1); k < list.length; k++) {
     if (id !== player.run) return; player.idx = k; player.segT0 = performance.now(); selectSeg(k, { scroll: true });
     const s = list[k], nxt = list[k + 1]; setStatus(`المقطع ${k + 1} من ${list.length} · ${EMO_META[s.emotion][0]} ${EMO_META[s.emotion][1]}`);
     setCaption(s.text, s.emphasis); Characters.pose(s.emotion, s.intensity); if (s.emotion !== 'neutral' && s.intensity > .55) Characters.fx();
-    Voice.prefetch(s.text, voiceOpts(s)); if (nxt) Voice.prefetch(nxt.text, voiceOpts(nxt));   // نبدأ توليد الصوت قبل مهلة التفاعل كي لا يتأخر
+    if (!s.clip) Voice.prefetch(s.text, voiceOpts(s)); if (nxt && !nxt.clip) Voice.prefetch(nxt.text, voiceOpts(nxt));   // نبدأ توليد الصوت قبل مهلة التفاعل كي لا يتأخر
     if (LEAD[s.emotion]) { await wait(LEAD[s.emotion]); if (id !== player.run) return; }
     Characters.speaking(true); stopBeats(); Characters.beat(); beatTimer = setInterval(Characters.beat, 800);
-    if (list[k + 2]) Voice.prefetch(list[k + 2].text, voiceOpts(list[k + 2]));
+    if (list[k + 2] && !list[k + 2].clip) Voice.prefetch(list[k + 2].text, voiceOpts(list[k + 2]));
     await Voice.speak(s.text, { ...voiceOpts(s), onLevel: v => Characters.level(v) });
     if (id !== player.run) return; Characters.speaking(false); stopBeats(); Characters.rest();
     await wait(s.pause_ms); if (id !== player.run) return;
@@ -197,3 +197,33 @@ $('btnImport').onclick = async () => {
   } catch (e) { setStatus('تعذّر الإدخال: ' + e.message); }
 };
 setWay('chat');
+
+
+/* ---------- تسجيلات المستخدم ---------- */
+const clipDur = async id => { try { return (await Clips.buffer(id)).duration; } catch (e) { return 0; } };
+async function showClipInfo(s) {
+  const el = $('clipInfo'); if (!s || !s.clip) { el.textContent = 'لا يوجد (يُقرأ بالصوت الآلي)'; $('clipPlay').disabled = $('clipDel').disabled = true; return; }
+  $('clipPlay').disabled = $('clipDel').disabled = false; const d = await clipDur(s.clip); el.textContent = d ? `مسجَّل · ${d.toFixed(1)} ث · سيُستخدم بدل الصوت الآلي` : 'التسجيل غير موجود على هذا الجهاز';
+}
+async function attachClip(blob) { const s = segs()[selSeg]; if (!s) return; if (s.clip) Clips.del(s.clip); s.clip = await Clips.put(blob); touch(true); showClipInfo(s); setStatus('تم حفظ تسجيل المقطع'); }
+$('clipRec').onclick = async () => {
+  const btn = $('clipRec');
+  if (Clips.recording) { btn.textContent = '⏺ سجّل'; btn.classList.remove('rec'); const b = await Clips.stopRec(); if (b && b.size > 800) await attachClip(b); else setStatus('التسجيل قصير جداً'); return; }
+  try { Voice.unlock(); await Clips.startRec(); btn.textContent = '⏹ إيقاف التسجيل'; btn.classList.add('rec'); setStatus('🔴 يُسجَّل الآن… اقرأ المقطع بصوتك'); }
+  catch (e) { setStatus('تعذّر الوصول للمايك: اسمح له من إعدادات المتصفح'); }
+};
+$('clipUp').onclick = () => $('clipFile').click();
+bind('clipFile', async el => { const f = el.files[0]; el.value = ''; if (!f) return; try { await attachClip(f); } catch (e) { setStatus('تعذّر الرفع: ' + e.message); } }, 'change');
+$('clipPlay').onclick = async () => { const s = segs()[selSeg]; if (!s || !s.clip) return; Voice.unlock(); Characters.speaking(true); await Voice.speak(s.text, { clip: s.clip, onLevel: v => Characters.level(v) }); Characters.speaking(false); };
+$('clipDel').onclick = () => { const s = segs()[selSeg]; if (!s || !s.clip) return; Clips.del(s.clip); s.clip = ''; touch(true); showClipInfo(s); setStatus('حُذف تسجيل المقطع'); };
+$('clipSplitBtn').onclick = () => { if (!segs().length) { setStatus('حلّل النص أولاً حتى توجد مقاطع'); return; } $('clipSplit').click(); };
+bind('clipSplit', async el => {
+  const f = el.files[0]; el.value = ''; if (!f) return; const list = segs(); setStatus('جارٍ تقسيم التسجيل…');
+  try {
+    Voice.unlock(); const r = await Clips.split(f, list.length);
+    for (let i = 0; i < r.clips.length; i++) { if (list[i].clip) Clips.del(list[i].clip); list[i].clip = await Clips.put(r.clips[i]); }
+    touch(true); showSegEditor();
+    setStatus(r.found === list.length ? `✅ قُسّم التسجيل على ${list.length} مقطع` : r.found > list.length ? `قُسّم التسجيل (وُجد ${r.found} مقطع صوتي ودُمجت الأقرب لتطابق ${list.length}). راجع كل مقطع` : `⚠️ وُجد ${r.found} مقطع صوتي فقط من ${list.length}. سجّل بوقفة أوضح بين الجمل أو أكمل الباقي يدوياً`);
+  } catch (e) { setStatus('تعذّر التقسيم: ' + e.message); }
+}, 'change');
+$('clipClearAll').onclick = () => { segs().forEach(s => { if (s.clip) { Clips.del(s.clip); s.clip = ''; } }); touch(true); showSegEditor(); setStatus('حُذفت كل التسجيلات من المقاطع'); };

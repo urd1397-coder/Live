@@ -168,3 +168,4 @@ button.big{display:block;width:100%;padding:13px 14px;font-size:16px;font-weight
 .loadov .bar{width:70%;height:8px;background:#ffffff22;border-radius:6px;overflow:hidden}.loadov .bar i{display:block;height:100%;width:0;background:var(--acc);transition:width .3s}
 @keyframes ldspin{to{transform:rotate(360deg)}}
 .btnlink{display:block;text-align:center;padding:12px;margin:6px 0;border:1px solid var(--line);border-radius:10px;color:#cfd2ff;text-decoration:none;font-weight:700}
+.clipbox{border:1px dashed #5b4fd6;border-radius:10px;padding:8px 10px;margin:8px 0;background:#15142a}.cliprow{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}.cliprow button{flex:1;min-width:70px}button.rec{background:#c62828!important;color:#fff;animation:recp 1s infinite}@keyframes recp{50%{opacity:.6}}

@@ -52,7 +52,9 @@
       <textarea id="segText" rows="2" placeholder="نص المقطع"></textarea>
       <div class="seg-grid">
         <label>الانفعال <select id="segEmo"></select></label>
-        <label>الصوت <select id="segVoice"></select></label>
+        <div class="clipbox"><b>🎤 صوتك لهذا المقطع</b> <span id="clipInfo" class="hint">لا يوجد (يُقرأ بالصوت الآلي)</span>
+          <div class="cliprow"><button id="clipRec" type="button">⏺ سجّل</button><button id="clipUp" type="button">⬆ ارفع ملفاً</button><input type="file" id="clipFile" accept="audio/*,video/*" hidden><button id="clipPlay" type="button">▶ استمع</button><button id="clipDel" type="button">🗑</button></div></div>
+        <label>الصوت الآلي <select id="segVoice"></select></label>
         <label>الشدة <output id="segIntV">50</output>%<input id="segInt" type="range" min="0" max="100" value="50"></label>
         <label>وقفة بعد المقطع <output id="segPauseV">280</output>ms<input id="segPause" type="range" min="0" max="1500" step="20" value="280"></label>
       </div>
@@ -215,6 +217,12 @@
       <button id="voiceCheck" type="button">🩺 فحص الصوت (يشرح لماذا لا يعمل الصوت العصبي)</button><pre id="voiceDiag" class="diag" hidden></pre>
       <label>سرعة الكلام <output id="rateV">1.00</output>×<input type="range" id="rate" min="0.7" max="1.3" step="0.05" value="1"></label>
       <label class="chk"><input type="checkbox" id="voiceStyle"> تحكم تجريبي باللهجة والانفعال (لأصوات Gemini فقط). إن سمعت صوتاً يقرأ تعليمات بالإنجليزية فعطّله</label>
+      <details class="card"><summary>🎤 صوتك أنت (تسجيل أو رفع ملف)</summary>
+        <p class="hint">لتحصل على لهجتك الحقيقية: سجّل أو ارفع تسجيلاً بصوتك. رفع تسجيل واحد طويل يُقسَّم تلقائياً على مقاطع القصة حسب وقفات الصمت بين الجمل (اقرأ كل مقطع ثم قف ثانية). أو افتح أي مقطع في الخط الزمني وسجّل له بشكل منفصل.</p>
+        <button id="clipSplitBtn" type="button" class="primary">⬆ ارفع تسجيلاً كاملاً وقسّمه على المقاطع</button><input type="file" id="clipSplit" accept="audio/*,video/*" hidden>
+        <button id="clipClearAll" type="button">🗑 احذف كل تسجيلاتي من المقاطع</button>
+        <p class="hint">التسجيلات تبقى على جهازك داخل المتصفح (وتُحفظ داخل ملف المشروع .livestudio.json). استخدم صوتك أنت أو صوتاً أذن لك صاحبه بنشره.</p>
+      </details>
       <p class="hint">هذا هو الصوت الافتراضي لكل الفيديو. لتغيير الصوت عند نقطة معيّنة، اضغط المقطع في الخط الزمني أسفل المسرح واختر له صوتاً.</p>
       <p class="hint">لا توجد أصوات «ها ها» أو «آآه» مصطنعة. التعبير يأتي من وجه الشخصية وجسمها، والصوت يتلوّن قليلاً حسب الانفعال.</p>
     </div>
@@ -244,6 +252,7 @@
 <script src="/character.js?v=studio-editor-1"></script>
 <script src="/analysis.js?v=studio-editor-1"></script>
 <script src="/voice.js?v=studio-editor-1"></script>
+<script src="/clips.js?v=studio-editor-1"></script>
 <script src="/app.js?v=studio-editor-1"></script>
 <script src="/studio.js?v=studio-editor-1"></script>
 <script src="/export.js?v=studio-editor-1"></script>

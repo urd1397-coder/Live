@@ -283,11 +283,14 @@ function renderAll() { fit(); renderBg(); renderProps(); applyChar(); renderText
 
 /* ---------- مشروع: جديد / حفظ / فتح ---------- */
 bind('projName', el => { P.name = el.value; save(); });
-$('btnSave').onclick = () => download(safeName(P.name) + '.livestudio.json', JSON.stringify(P));
+$('btnSave').onclick = async () => {
+  const clips = {}; for (const sg of (P.script.segments || [])) if (sg.clip) { const b = await Clips.blob(sg.clip); if (b) clips[sg.clip] = await Clips.toDataURL(b); }
+  download(safeName(P.name) + '.livestudio.json', JSON.stringify(Object.keys(clips).length ? { ...P, clips } : P));
+};
 $('btnOpen').onclick = () => $('fileOpen').click();
 bind('fileOpen', async el => {
   const f = el.files[0]; if (!f) return; el.value = '';
-  try { loadProject(JSON.parse(await f.text())); setStatus('تم فتح المشروع'); } catch (e) { setStatus('ملف مشروع غير صالح: ' + e.message); }
+  try { const d = JSON.parse(await f.text()); if (d && d.clips) for (const [id, url] of Object.entries(d.clips)) await Clips.fromDataURL(url, id); delete d.clips; loadProject(d); setStatus('تم فتح المشروع'); } catch (e) { setStatus('ملف مشروع غير صالح: ' + e.message); }
 }, 'change');
 function loadProject(d) {
   if (!d || d.kind !== 'live-studio-project') throw new Error('هذا ليس ملف مشروع Live Studio');

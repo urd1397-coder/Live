@@ -50,8 +50,11 @@ const Voice = (() => {
   }
   async function speakServer(text, o, id) {
     const buf = await prefetch(text, o);
+    return playBuf(buf, o, id, 'server');
+  }
+  function playBuf(buf, o, id, engine) {
     if (id !== runId) return { dur: 0 };
-    last.engine = 'server'; last.error = ''; lastWarn = ''; const c = ctx(), src = c.createBufferSource(); src.buffer = buf; src.connect(analyser);
+    last.engine = engine; last.error = ''; lastWarn = ''; const c = ctx(), src = c.createBufferSource(); src.buffer = buf; src.connect(analyser);
     const data = new Uint8Array(analyser.fftSize); let smooth = 0, raf = 0;
     const tick = () => {
       analyser.getByteTimeDomainData(data); let sum = 0; for (let i = 0; i < data.length; i++) { const v = (data[i] - 128) / 128; sum += v * v; }
@@ -91,7 +94,11 @@ const Voice = (() => {
   }
 
   async function speak(text, o = {}) {
-    cancel(false); const id = ++runId; text = (text || '').trim(); if (!text) return { dur: 0 };
+    cancel(false); const id = ++runId; text = (text || '').trim();
+    if (o.clip) {       // تسجيل المستخدم لهذا المقطع
+      try { ctx(); const buf = await Clips.buffer(o.clip); return await playBuf(buf, o, id, 'clip'); } catch (e) { if (id !== runId) return { dur: 0 }; warn('تسجيل المقطع غير متاح (' + (e.message || e) + ')، استُخدم الصوت الآلي.'); }
+    }
+    if (!text) return { dur: 0 };
     if (serverOn() && (!o.voice || o.voice.startsWith('s:'))) {
       try { return await speakServer(text, o, id); } catch (e) { if (id !== runId) return { dur: 0 }; warn(String(e.message || e).slice(0, 200) + ' — استُخدم صوت المتصفح بدلاً منه.'); }   // سقطنا إلى المتصفح
     }
@@ -104,10 +111,10 @@ const Voice = (() => {
   function prepare(items, onProgress, need) {
     const total = items.length; need = Math.min(need || 1, total); let next = 0, done = 0, failed = 0;
     return new Promise(resolve => {
-      if (!total || !serverOn()) return resolve();
+      if (!total || !(serverOn() || items.some(x => x.opts.clip))) return resolve();
       let fired = false;
       const tick = () => { done++; onProgress && onProgress(done, total); if (!fired && done >= need) { fired = true; resolve(failed); } };
-      const worker = async () => { while (next < total) { const it = items[next++]; let ok = false; for (let a = 0; a < 2 && !ok; a++) { try { const pr = prefetch(it.text, it.opts); if (pr) await pr; ok = true; } catch (e) { await new Promise(r => setTimeout(r, 1500)); } } if (!ok) failed++; tick(); } };
+      const worker = async () => { while (next < total) { const it = items[next++]; let ok = false; for (let a = 0; a < 2 && !ok; a++) { try { if (it.opts.clip) await Clips.buffer(it.opts.clip); else { const pr = prefetch(it.text, it.opts); if (pr) await pr; } ok = true; } catch (e) { await new Promise(r => setTimeout(r, 1500)); } } if (!ok) failed++; tick(); } };
       worker(); worker();
     });
   }
@@ -117,5 +124,5 @@ const Voice = (() => {
   function captureStream() { const c = ctx(); if (!c) return null; if (!recDest) { recDest = c.createMediaStreamDestination(); analyser.connect(recDest); } return recDest.stream; }
   function releaseCapture() { if (recDest) { try { analyser.disconnect(recDest); } catch (e) { /* ok */ } recDest = null; } }
 
-  return Object.assign(api, { init, unlock, listVoices, sampleFor, speak, prefetch, prepare, cancel, captureStream, releaseCapture, get caps() { return caps; }, get serverOn() { return serverOn(); }, get last() { return last; } });
+  return Object.assign(api, { audioContext: ctx, init, unlock, listVoices, sampleFor, speak, prefetch, prepare, cancel, captureStream, releaseCapture, get caps() { return caps; }, get serverOn() { return serverOn(); }, get last() { return last; } });
 })();
