@@ -34,12 +34,12 @@ const Voice = (() => {
   const sampleFor = key => { const v = listVoices().find(x => x.key === key); return v && v.sample; };
 
   /* ---------- صوت الخادم ---------- */
-  function keyOf(text, o) { return [o.voice || '', o.rate || 1, o.emotion || '', Math.round((o.intensity == null ? .6 : o.intensity) * 4), text].join('|'); }
+  function keyOf(text, o) { return [o.voice || '', o.rate || 1, o.emotion || '', o.style ? 1 : 0, Math.round((o.intensity == null ? .6 : o.intensity) * 4), text].join('|'); }
   function prefetch(text, o = {}) {
     if (!serverOn() || !(o.voice || '').startsWith('s:') && o.voice) return null;
     const c = ctx(); if (!c) return null; const key = keyOf(text, o);
     if (!cache.has(key)) {
-      const p = fetch('/api/tts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, voice: (o.voice || '').replace(/^s:/, ''), rate: o.rate || 1, emotion: o.emotion || 'neutral', intensity: o.intensity == null ? .6 : o.intensity }) })
+      const p = fetch('/api/tts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text, voice: (o.voice || '').replace(/^s:/, ''), rate: o.rate || 1, emotion: o.emotion || 'neutral', intensity: o.intensity == null ? .6 : o.intensity, style: !!o.style }) })
         .then(async r => { if (!r.ok) { let d = ''; try { d = (await r.json()).detail || ''; } catch (e) { /* no body */ } throw new Error(d || ('خطأ ' + r.status)); } return r.arrayBuffer(); })
         .then(b => new Promise((res, rej) => c.decodeAudioData(b, res, rej)))
         .then(buf => buf);
@@ -102,12 +102,12 @@ const Voice = (() => {
 
   // تجهيز مسبق: يولّد الصوت لعدة مقاطع بالتوازي المحدود. يُرجع وعداً يتحقق عند جاهزية أول `need` مقطع، ويكمل الباقي بالخلفية
   function prepare(items, onProgress, need) {
-    const total = items.length; need = Math.min(need || 1, total); let next = 0, done = 0;
+    const total = items.length; need = Math.min(need || 1, total); let next = 0, done = 0, failed = 0;
     return new Promise(resolve => {
       if (!total || !serverOn()) return resolve();
       let fired = false;
-      const tick = () => { done++; onProgress && onProgress(done, total); if (!fired && done >= need) { fired = true; resolve(); } };
-      const worker = async () => { while (next < total) { const it = items[next++]; try { const pr = prefetch(it.text, it.opts); if (pr) await pr; } catch (e) { /* يُعالج وقت التشغيل */ } tick(); } };
+      const tick = () => { done++; onProgress && onProgress(done, total); if (!fired && done >= need) { fired = true; resolve(failed); } };
+      const worker = async () => { while (next < total) { const it = items[next++]; let ok = false; for (let a = 0; a < 2 && !ok; a++) { try { const pr = prefetch(it.text, it.opts); if (pr) await pr; ok = true; } catch (e) { await new Promise(r => setTimeout(r, 1500)); } } if (!ok) failed++; tick(); } };
       worker(); worker();
     });
   }

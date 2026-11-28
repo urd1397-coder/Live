@@ -5,7 +5,7 @@ const LEAD = { shock: 260, scream: 220, laugh: 180, angry: 120, scared: 140 };  
 const segs = () => P.script.segments;
 const fmt = s => Math.floor(s / 60) + ':' + String(Math.floor(s % 60)).padStart(2, '0');
 const norm = s => ({ text: String(s.text || '').trim(), emotion: Characters.EMOS.includes(s.emotion) ? s.emotion : 'neutral', intensity: clamp(+s.intensity || .5, 0, 1), pause_ms: clamp(Number.isFinite(+s.pause_ms) ? +s.pause_ms : 280, 0, 2500), emphasis: Array.isArray(s.emphasis) ? s.emphasis.filter(w => typeof w === 'string') : [], forced: !!s.forced, voice: typeof s.voice === 'string' ? s.voice : '' });
-const voiceOpts = s => ({ voice: s.voice || P.voice.key, rate: P.voice.rate, emotion: s.emotion, intensity: s.intensity });
+const voiceOpts = s => ({ voice: s.voice || P.voice.key, rate: P.voice.rate, emotion: s.emotion, intensity: s.intensity, style: !!P.voice.style });
 
 /* ---------- الخط الزمني ---------- */
 function renderTimeline() {
@@ -55,7 +55,7 @@ function setSegments(list, keepSel) { P.script.segments = list.map(norm).filter(
 /* ---------- التشغيل ---------- */
 function setPlayBtn() { $('tPlay').textContent = player.playing ? '⏸ إيقاف مؤقت' : '▶ تشغيل'; }
 function stopBeats() { clearInterval(beatTimer); beatTimer = 0; }
-function stopPlayback() { player.run++; player.playing = false; Voice.cancel(); stopBeats(); cancelAnimationFrame(tickRaf); Characters.speaking(false); Characters.level(null); setPlayBtn(); document.querySelectorAll('.blk').forEach(b => { b.classList.remove('now'); b.style.removeProperty('--p'); }); }
+function stopPlayback() { $('loadOv').hidden = true; player.run++; player.playing = false; Voice.cancel(); stopBeats(); cancelAnimationFrame(tickRaf); Characters.speaking(false); Characters.level(null); setPlayBtn(); document.querySelectorAll('.blk').forEach(b => { b.classList.remove('now'); b.style.removeProperty('--p'); }); }
 function tick() {
   if (!player.playing) return; $('tTime').textContent = fmt((performance.now() - player.t0) / 1000);
   const b = document.querySelectorAll('.blk')[player.idx]; if (b) { const s = segs()[player.idx], el = (performance.now() - player.segT0) / 1000; b.style.setProperty('--p', clamp(el / Analysis.estimate(s, P.voice.rate), 0, 1)); }
@@ -65,7 +65,10 @@ async function playFrom(i) {
   const list = segs(); if (!list.length) { setStatus('لا يوجد نص للتشغيل بعد'); return; }
   stopPlayback(); const id = ++player.run; player.playing = true; player.t0 = performance.now(); Voice.unlock(); setPlayBtn(); tick();
   { const from = clamp(i, 0, list.length - 1), items = list.slice(from).map(x => ({ text: x.text, opts: voiceOpts(x) }));
-    await Voice.prepare(items, (n, t) => { if (id === player.run) setStatus(`جارٍ تجهيز الصوت… ${n}/${t}`); }, 2); if (id !== player.run) return; }
+    const showLoad = (n, t) => { if (id !== player.run) return; $('loadOv').hidden = false; $('loadTxt').textContent = `جارٍ تحميل الفيديو (صوت وصورة)… ${n}/${t}`; $('loadBar').style.width = (t ? n / t * 100 : 0) + '%'; setStatus(`جارٍ التحميل ${n}/${t}`); };
+    if (Voice.serverOn && items.length) showLoad(0, items.length);
+    const failed = await Voice.prepare(items, showLoad, items.length); $('loadOv').hidden = true;
+    if (id !== player.run) return; if (failed) setStatus(`⚠️ تعذّر تجهيز صوت ${failed} مقطع، وسيُقرأ بصوت المتصفح بدلاً منه`); }
   for (let k = clamp(i, 0, list.length - 1); k < list.length; k++) {
     if (id !== player.run) return; player.idx = k; player.segT0 = performance.now(); selectSeg(k, { scroll: true });
     const s = list[k], nxt = list[k + 1]; setStatus(`المقطع ${k + 1} من ${list.length} · ${EMO_META[s.emotion][0]} ${EMO_META[s.emotion][1]}`);

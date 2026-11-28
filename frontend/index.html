@@ -25,6 +25,7 @@
   <section class="stagecol">
     <div class="stage-area" id="stageArea">
       <div class="stage-wrap" id="stageWrap">
+        <div class="loadov" id="loadOv" hidden><div class="spin"></div><b id="loadTxt">جارٍ التحميل…</b><div class="bar"><i id="loadBar"></i></div></div>
         <div class="stage" id="stage">
           <div class="layer" id="lyBg"></div>
           <div class="layer" id="lyChar"></div>
@@ -204,6 +205,7 @@
       <button id="voiceTest" type="button" class="primary big">🔊 جرّب الصوت</button>
       <button id="voiceCheck" type="button">🩺 فحص الصوت (يشرح لماذا لا يعمل الصوت العصبي)</button><pre id="voiceDiag" class="diag" hidden></pre>
       <label>سرعة الكلام <output id="rateV">1.00</output>×<input type="range" id="rate" min="0.7" max="1.3" step="0.05" value="1"></label>
+      <label class="chk"><input type="checkbox" id="voiceStyle"> تحكم تجريبي باللهجة والانفعال (لأصوات Gemini فقط). إن سمعت صوتاً يقرأ تعليمات بالإنجليزية فعطّله</label>
       <p class="hint">هذا هو الصوت الافتراضي لكل الفيديو. لتغيير الصوت عند نقطة معيّنة، اضغط المقطع في الخط الزمني أسفل المسرح واختر له صوتاً.</p>
       <p class="hint">لا توجد أصوات «ها ها» أو «آآه» مصطنعة. التعبير يأتي من وجه الشخصية وجسمها، والصوت يتلوّن قليلاً حسب الانفعال.</p>
     </div>

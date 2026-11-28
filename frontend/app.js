@@ -17,7 +17,7 @@ function newProject() {
     char: { mode: 'builtin', skin: {}, headphones: true, images: {}, svgText: '', layout: { ...Scene.autoLayout(aspect), flip: false } },
     texts: [{ id: 't' + Date.now(), text: 'LIVE', x: .2, y: .07, size: 6, color: '#ff5bd8', font: 'Cairo', glow: true }],
     caps: { on: true, size: 4.2, y: 82, color: '#ffffff', hl: '#ffd34d', box: true },
-    voice: { key: '', rate: 1 },
+    voice: { key: '', rate: 1, style: false },
     script: { segments: [], bible: null, topic: '', kind: 'story', tone: 'ساخر وخفيف', dialect: 'بيضاء', len: 16, notes: '' }
   };
 }
@@ -259,6 +259,7 @@ function refreshVoiceList() {
 }
 bind('voiceGroup', () => { fillGroupVoices(); const v = $('voiceSel').value; if (v) { P.voice.key = v; save(); if (typeof showSegEditor === 'function') showSegEditor(); } }, 'change');
 bind('voiceSel', el => { P.voice.key = el.value; save(); }, 'change');
+bind('voiceStyle', el => { P.voice.style = el.checked; save(); }, 'change');
 bind('rate', el => { P.voice.rate = +el.value; $('rateV').textContent = (+el.value).toFixed(2); save(); });
 $('voiceTest').onclick = async () => {
   Voice.unlock(); Characters.pose('neutral'); Characters.speaking(true); const info = $('voiceInfo'); info.className = 'banner'; info.textContent = 'جارٍ تجهيز الصوت…';
@@ -275,7 +276,7 @@ function syncAll() {
   $('projName').value = P.name; $('aspect').value = P.aspect; showCharMode(); syncBgCtl(); syncLayoutCtl(); renderSlots(); renderTextList(); if (!selText && P.texts[0]) selText = P.texts[0].id; syncTextCtl();
   $('skHead').value = P.char.skin.head || '#ffffff'; $('skLine').value = P.char.skin.line || '#0b0a14'; $('skLed').value = P.char.skin.led || '#4aa3ff'; $('skHp').checked = P.char.headphones !== false;
   const c = P.caps; $('capOn').checked = c.on; $('capSize').value = c.size; $('capY').value = c.y; $('capColor').value = c.color; $('capHl').value = c.hl; $('capBox').checked = c.box;
-  $('rate').value = P.voice.rate; $('rateV').textContent = (+P.voice.rate).toFixed(2); refreshVoiceList();
+  $('voiceStyle').checked = !!P.voice.style; $('rate').value = P.voice.rate; $('rateV').textContent = (+P.voice.rate).toFixed(2); refreshVoiceList();
   if (typeof syncStoryCtl === 'function') syncStoryCtl();
 }
 function renderAll() { fit(); renderBg(); renderProps(); applyChar(); renderTexts(); renderCapStyle(); setCaption('', []); if (typeof renderTimeline === 'function') renderTimeline(); }

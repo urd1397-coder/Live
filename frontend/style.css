@@ -160,3 +160,10 @@ button.big{display:block;width:100%;padding:13px 14px;font-size:16px;font-weight
 .tips{padding-inline-start:20px;margin:12px 0}.tips li{margin:5px 0}
 .t-status{white-space:normal;line-height:1.35;max-height:2.8em;overflow:hidden}
 .diag{direction:ltr;text-align:left;white-space:pre-wrap;background:#0e0f14;border:1px solid var(--line);border-radius:10px;padding:10px;font-size:12px;margin:8px 0;color:#cfd0e0}
+
+.stage-wrap{position:relative}
+.loadov{position:absolute;inset:0;z-index:30;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;background:#0b0b12ee;color:#fff;text-align:center;padding:16px;border-radius:12px}
+.loadov[hidden]{display:none}
+.loadov .spin{width:38px;height:38px;border:4px solid #ffffff33;border-top-color:var(--acc);border-radius:50%;animation:ldspin 1s linear infinite}
+.loadov .bar{width:70%;height:8px;background:#ffffff22;border-radius:6px;overflow:hidden}.loadov .bar i{display:block;height:100%;width:0;background:var(--acc);transition:width .3s}
+@keyframes ldspin{to{transform:rotate(360deg)}}
